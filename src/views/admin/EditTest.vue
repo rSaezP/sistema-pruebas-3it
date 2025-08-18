@@ -149,7 +149,7 @@
             <label class="input-label">Lenguaje de Programación</label>
             <select v-model="question.language" class="input select" required>
             <optgroup label="🎯 Lenguajes de Evaluación Técnica">
-              <option value="tlang">TLang (Como EvalArt)</option>
+              <option value="tlang">TLang </option>
               <option value="pseudocode">Pseudocódigo</option>
               <option value="algorithm">Descripción de Algoritmo</option>
             </optgroup>

@@ -77,6 +77,17 @@
           <small class="form-help">Código que aparecerá por defecto en el editor del candidato</small>
         </div>
 
+        <div class="form-group">
+          <label for="expected_solution">Solución Esperada *</label>
+          <CodeEditor
+            ref="solutionEditorRef"
+            :language="questionData.language"
+            v-model="questionData.expected_solution"
+            :height="250"
+          />
+          <small class="form-help">Código de la solución correcta para evaluación automática</small>
+        </div>
+
         <!-- Test Cases -->
         <TestCaseEditor
           :test-cases="questionData.test_cases"
@@ -157,8 +168,8 @@
         </div>
       </div>
 
-      <!-- Actions -->
-      <div class="form-actions">
+      <!-- Actions (hidden when used inline) -->
+      <div v-if="!hideActions" class="form-actions">
         <button type="button" @click="$emit('cancel')" class="btn btn-secondary">
           Cancelar
         </button>
@@ -180,6 +191,7 @@ import TestCaseEditor from './TestCaseEditor.vue'
 const props = defineProps<{
   modelValue: any
   isEditing?: boolean
+  hideActions?: boolean
 }>()
 
 // Emits
@@ -187,6 +199,7 @@ const emit = defineEmits(['update:modelValue', 'save', 'cancel'])
 
 // Refs
 const codeEditorRef = ref()
+const solutionEditorRef = ref()
 const sqlEditorRef = ref()
 
 // Reactive data
@@ -199,6 +212,7 @@ const questionData = ref({
   max_score: 10,
   language: 'javascript',
   initial_code: '',
+  expected_solution: '',
   database_schema: '',
   options: [
     { text: '', correct: false },
@@ -215,7 +229,9 @@ const isValid = computed(() => {
   const base = questionData.value.title.trim() && questionData.value.description.trim()
   
   if (questionData.value.type === 'programming') {
-    return base && questionData.value.test_cases.length > 0
+    return base && 
+           questionData.value.expected_solution.trim() && 
+           questionData.value.test_cases.length > 0
   } else if (questionData.value.type === 'sql') {
     return base && questionData.value.correct_answer.trim()
   } else if (questionData.value.type === 'multiple_choice') {
@@ -288,8 +304,15 @@ watch(() => props.modelValue, (newValue) => {
         timeout_ms: 5000
       }]
     }
+    
+    // Ensure expected_solution exists
+    if (!questionData.value.expected_solution) {
+      questionData.value.expected_solution = ''
+    }
   }
 }, { immediate: true })
+
+// Don't auto-emit to prevent loops - let parent handle v-model updates
 
 // Lifecycle
 onMounted(() => {
@@ -304,6 +327,11 @@ onMounted(() => {
       weight: 1.0,
       timeout_ms: 5000
     }]
+  }
+  
+  // Ensure expected_solution exists
+  if (!questionData.value.expected_solution) {
+    questionData.value.expected_solution = ''
   }
 })
 </script>

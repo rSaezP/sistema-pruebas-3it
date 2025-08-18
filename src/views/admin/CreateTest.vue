@@ -122,72 +122,35 @@
           </div>
         </div>
 
-        <!-- Questions List -->
+        <!-- Questions List - Inline Editing -->
         <div class="questions-list">
           <div 
             v-for="(question, index) in testData.questions" 
             :key="question.tempId"
-            class="question-card"
-            :class="{ 'editing': editingQuestion === question.tempId }"
+            class="question-form-card"
           >
-            <div class="question-header">
+            <div class="question-form-header">
               <div class="question-info">
                 <span class="question-number">{{ index + 1 }}</span>
                 <span class="question-type-badge" :class="question.type">
                   {{ getQuestionTypeLabel(question.type) }}
                 </span>
-                <span class="question-difficulty" :class="question.difficulty">
-                  {{ question.difficulty }}
-                </span>
-                <span class="question-points">{{ question.max_score }} pts</span>
               </div>
-              <div class="question-actions">
-                <button @click="editQuestion(question.tempId)" class="btn-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/>
-                  </svg>
-                </button>
-                <button @click="deleteQuestion(question.tempId)" class="btn-icon delete">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                  </svg>
-                </button>
-              </div>
+              <button @click="deleteQuestion(question.tempId)" class="btn-icon delete">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                </svg>
+              </button>
             </div>
             
-            <div class="question-content">
-              <h4>{{ question.title }}</h4>
-              <p class="question-description">{{ question.description }}</p>
-              
-              <!-- Programming question preview -->
-              <div v-if="question.type === 'programming'" class="code-preview">
-                <div class="language-badge">{{ question.language }}</div>
-                <pre class="initial-code">{{ question.initial_code || 'Sin código inicial' }}</pre>
-                <div class="test-cases-info">
-                  <strong>Casos de prueba:</strong> {{ question.test_cases?.length || 0 }}
-                </div>
-              </div>
-              
-              <!-- SQL question preview -->
-              <div v-if="question.type === 'sql'" class="sql-preview">
-                <div class="schema-info">
-                  <strong>Esquema:</strong> {{ question.database_schema ? 'Configurado' : 'No configurado' }}
-                </div>
-              </div>
-              
-              <!-- Multiple choice preview -->
-              <div v-if="question.type === 'multiple_choice'" class="options-preview">
-                <div class="options-list">
-                  <div 
-                    v-for="(option, optIndex) in getQuestionOptions(question)" 
-                    :key="optIndex"
-                    class="option-item"
-                    :class="{ correct: option.correct }"
-                  >
-                    {{ option.text }}
-                  </div>
-                </div>
-              </div>
+            <!-- Inline Question Editor -->
+            <div class="question-form-content">
+              <QuestionEditor
+                :modelValue="testData.questions[index]"
+                :isEditing="true"
+                :hideActions="true"
+                @update:modelValue="updateQuestionData(index, $event)"
+              />
             </div>
           </div>
 
@@ -256,7 +219,7 @@
           </div>
           
           <div class="total-score">
-            <strong>Puntaje total: {{ totalMaxScore }} puntos</strong>
+            <strong>Puntaje total: {{ getTotalMaxScore() }} puntos</strong>
           </div>
         </div>
 
@@ -276,25 +239,6 @@
       </div>
     </div>
 
-    <!-- Question Editor Modal -->
-    <div v-if="showQuestionModal" class="modal-overlay" @click="closeQuestionModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>{{ isEditing ? 'Editar' : 'Nueva' }} Pregunta {{ getQuestionTypeLabel(currentQuestion.type) }}</h3>
-          <button @click="closeQuestionModal" class="btn-close">×</button>
-        </div>
-        
-        <div class="modal-body">
-          <QuestionEditor
-            ref="questionEditorRef"
-            v-model="currentQuestion"
-            :isEditing="isEditing"
-            @save="saveQuestion"
-            @cancel="closeQuestionModal"
-          />
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -311,10 +255,7 @@ const toast = useToast()
 // State
 const currentStep = ref(1)
 const loading = ref(false)
-const showQuestionModal = ref(false)
-const editingQuestion = ref<string | null>(null)
 const newQuestionType = ref('')
-const questionEditorRef = ref()
 
 // Test data
 const testData = ref({
@@ -326,27 +267,10 @@ const testData = ref({
   questions: [] as any[]
 })
 
-// Current question being edited
-const currentQuestion = ref({
-  tempId: '',
-  type: '',
-  title: '',
-  description: '',
-  difficulty: 'Medio',
-  max_score: 10,
-  language: 'javascript',
-  initial_code: '',
-  database_schema: '',
-  options: [],
-  correct_answer: '',
-  test_cases: []
-})
-
-// Computed
-const isEditing = computed(() => !!editingQuestion.value)
-const totalMaxScore = computed(() => {
+// Methods (not computed to avoid reactive loops)
+const getTotalMaxScore = () => {
   return testData.value.questions.reduce((total, q) => total + (q.max_score || 0), 0)
-})
+}
 
 // Methods
 const goBack = () => {
@@ -364,7 +288,7 @@ const addQuestion = () => {
   
   const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   
-  currentQuestion.value = {
+  const newQuestion = {
     tempId,
     type: newQuestionType.value,
     title: '',
@@ -373,6 +297,7 @@ const addQuestion = () => {
     max_score: 10,
     language: 'javascript',
     initial_code: '',
+    expected_solution: '',
     database_schema: '',
     options: newQuestionType.value === 'multiple_choice' ? [
       { text: '', correct: false },
@@ -381,21 +306,25 @@ const addQuestion = () => {
       { text: '', correct: false }
     ] : [],
     correct_answer: '',
-    test_cases: []
+    test_cases: newQuestionType.value === 'programming' ? [{
+      id: crypto.randomUUID(),
+      name: 'Caso 1',
+      input_data: '',
+      expected_output: '',
+      is_hidden: false,
+      weight: 1.0,
+      timeout_ms: 5000
+    }] : []
   }
   
-  editingQuestion.value = null
-  showQuestionModal.value = true
+  testData.value.questions.push(newQuestion)
   newQuestionType.value = ''
+  toast.success('Pregunta agregada')
 }
 
-const editQuestion = (tempId: string) => {
-  const question = testData.value.questions.find(q => q.tempId === tempId)
-  if (question) {
-    currentQuestion.value = { ...question }
-    editingQuestion.value = tempId
-    showQuestionModal.value = true
-  }
+const updateQuestionData = (index: number, questionData: any) => {
+  // Update without triggering reactive loops
+  testData.value.questions[index] = { ...questionData }
 }
 
 const deleteQuestion = (tempId: string) => {
@@ -405,41 +334,6 @@ const deleteQuestion = (tempId: string) => {
   }
 }
 
-const saveQuestion = (questionData: any) => {
-  if (editingQuestion.value) {
-    // Edit existing question
-    const index = testData.value.questions.findIndex(q => q.tempId === editingQuestion.value)
-    if (index !== -1) {
-      testData.value.questions[index] = { ...questionData }
-      toast.success('Pregunta actualizada')
-    }
-  } else {
-    // Add new question
-    testData.value.questions.push({ ...questionData })
-    toast.success('Pregunta agregada')
-  }
-  
-  closeQuestionModal()
-}
-
-const closeQuestionModal = () => {
-  showQuestionModal.value = false
-  editingQuestion.value = null
-  currentQuestion.value = {
-    tempId: '',
-    type: '',
-    title: '',
-    description: '',
-    difficulty: 'Medio',
-    max_score: 10,
-    language: 'javascript',
-    initial_code: '',
-    database_schema: '',
-    options: [],
-    correct_answer: '',
-    test_cases: []
-  }
-}
 
 const saveTest = async () => {
   if (loading.value) return
@@ -769,6 +663,35 @@ input:checked + .slider:before {
   box-shadow: var(--shadow-md);
 }
 
+/* Question Form Cards */
+.question-form-card {
+  border: 2px solid #E5E7EB;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--spacing-4);
+  overflow: hidden;
+  transition: all var(--transition-base);
+}
+
+.question-form-card:hover {
+  box-shadow: var(--shadow-lg);
+  border-color: var(--azul-electrico);
+}
+
+.question-form-header {
+  background: var(--gris);
+  padding: var(--spacing-3);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.question-form-content {
+  padding: var(--spacing-4);
+  background: var(--blanco);
+}
+
+
 .questions-header {
   display: flex;
   justify-content: space-between;
@@ -1056,6 +979,7 @@ input:checked + .slider:before {
   padding-top: var(--spacing-3);
   border-top: 1px solid #E5E7EB;
 }
+
 
 /* Modal */
 .modal-overlay {
