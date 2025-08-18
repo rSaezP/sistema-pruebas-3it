@@ -59,14 +59,11 @@
         
         <div class="form-group">
           <label for="language">Lenguaje de Programación *</label>
-          <select id="language" v-model="questionData.language" class="input select">
-            <option value="javascript">JavaScript</option>
-            <option value="python">Python</option>
-            <option value="java">Java</option>
-            <option value="csharp">C#</option>
-            <option value="cpp">C++</option>
-            <option value="typescript">TypeScript</option>
-          </select>
+          <LanguageSelector
+            id="language"
+            v-model="questionData.language"
+            :required="true"
+          />
         </div>
 
         <div class="form-group">
@@ -81,98 +78,10 @@
         </div>
 
         <!-- Test Cases -->
-        <div class="test-cases-section">
-          <div class="section-header">
-            <h5>Casos de Prueba</h5>
-            <button 
-              type="button" 
-              @click="addTestCase" 
-              class="btn btn-secondary btn-sm"
-            >
-              + Agregar Caso
-            </button>
-          </div>
-
-          <div 
-            v-for="(testCase, index) in questionData.test_cases" 
-            :key="index"
-            class="test-case-card"
-          >
-            <div class="test-case-header">
-              <span class="test-case-number">Caso {{ index + 1 }}</span>
-              <button 
-                type="button" 
-                @click="removeTestCase(index)" 
-                class="btn-icon delete"
-                :disabled="questionData.test_cases.length <= 1"
-              >
-                🗑️
-              </button>
-            </div>
-            
-            <div class="form-row">
-              <div class="form-group">
-                <label>Nombre del Caso</label>
-                <input 
-                  v-model="testCase.name"
-                  type="text" 
-                  placeholder="Ej: Caso básico"
-                  class="input"
-                >
-              </div>
-              
-              <div class="form-group">
-                <label>Peso</label>
-                <input 
-                  v-model.number="testCase.weight"
-                  type="number" 
-                  min="0.1"
-                  step="0.1"
-                  class="input"
-                >
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label>Datos de Entrada</label>
-                <textarea 
-                  v-model="testCase.input_data"
-                  rows="3"
-                  placeholder="Datos de entrada (ej: [1, 2, 3])"
-                  class="input textarea"
-                ></textarea>
-              </div>
-              
-              <div class="form-group">
-                <label>Salida Esperada</label>
-                <textarea 
-                  v-model="testCase.expected_output"
-                  rows="3"
-                  placeholder="Resultado esperado (ej: 6)"
-                  class="input textarea"
-                ></textarea>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="checkbox-label">
-                <input 
-                  type="checkbox" 
-                  v-model="testCase.is_hidden"
-                >
-                Caso oculto (no visible para el candidato)
-              </label>
-            </div>
-          </div>
-
-          <div v-if="questionData.test_cases.length === 0" class="empty-state">
-            <p>Aún no has agregado casos de prueba.</p>
-            <button type="button" @click="addTestCase" class="btn btn-primary">
-              Agregar Primer Caso
-            </button>
-          </div>
-        </div>
+        <TestCaseEditor
+          :test-cases="questionData.test_cases"
+          @update:test-cases="updateTestCases"
+        />
       </div>
 
       <!-- SQL Question -->
@@ -264,6 +173,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import CodeEditor from './CodeEditor.vue'
+import LanguageSelector from './LanguageSelector.vue'
+import TestCaseEditor from './TestCaseEditor.vue'
 
 // Props
 const props = defineProps<{
@@ -317,19 +228,8 @@ const isValid = computed(() => {
 })
 
 // Methods
-const addTestCase = () => {
-  questionData.value.test_cases.push({
-    name: `Caso ${questionData.value.test_cases.length + 1}`,
-    input_data: '',
-    expected_output: '',
-    is_hidden: false,
-    weight: 1.0,
-    timeout_ms: 5000
-  })
-}
-
-const removeTestCase = (index: number) => {
-  questionData.value.test_cases.splice(index, 1)
+const updateTestCases = (newTestCases: any[]) => {
+  questionData.value.test_cases = newTestCases
 }
 
 const setCorrectOption = (index: number) => {
@@ -376,18 +276,34 @@ watch(() => props.modelValue, (newValue) => {
       questionData.value.test_cases = []
     }
     
-    // Add default test case for programming questions if none exist
-    if (questionData.value.type === 'programming' && questionData.value.test_cases.length === 0) {
-      addTestCase()
+    // Add default test case ONLY for new programming questions
+    if (questionData.value.type === 'programming' && questionData.value.test_cases.length === 0 && !props.isEditing) {
+      questionData.value.test_cases = [{
+        id: crypto.randomUUID(),
+        name: 'Caso 1',
+        input_data: '',
+        expected_output: '',
+        is_hidden: false,
+        weight: 1.0,
+        timeout_ms: 5000
+      }]
     }
   }
-}, { immediate: true, deep: true })
+}, { immediate: true })
 
 // Lifecycle
 onMounted(() => {
-  // Initialize with default test case for programming questions
+  // Initialize with default test case for programming questions ONLY on mount
   if (questionData.value.type === 'programming' && questionData.value.test_cases.length === 0) {
-    addTestCase()
+    questionData.value.test_cases = [{
+      id: crypto.randomUUID(),
+      name: 'Caso 1',
+      input_data: '',
+      expected_output: '',
+      is_hidden: false,
+      weight: 1.0,
+      timeout_ms: 5000
+    }]
   }
 })
 </script>
@@ -452,67 +368,7 @@ onMounted(() => {
   margin: 0;
 }
 
-/* Test Cases */
-.test-cases-section {
-  margin-top: var(--spacing-4);
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-3);
-}
-
-.section-header h5 {
-  color: var(--azul-tritiano);
-  margin: 0;
-  font-size: var(--font-size-base);
-}
-
-.test-case-card {
-  background: var(--blanco);
-  border: 1px solid #E5E7EB;
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-3);
-  margin-bottom: var(--spacing-3);
-}
-
-.test-case-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-3);
-  padding-bottom: var(--spacing-2);
-  border-bottom: 1px solid #E5E7EB;
-}
-
-.test-case-number {
-  font-weight: 600;
-  color: var(--azul-tritiano);
-}
-
-.btn-icon {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: var(--spacing-1);
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-base);
-}
-
-.btn-icon:hover:not(:disabled) {
-  background: rgba(0, 0, 0, 0.1);
-}
-
-.btn-icon.delete:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.1);
-}
-
-.btn-icon:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+/* Test Cases - Now handled by TestCaseEditor component */
 
 /* Options */
 .option-card {
@@ -543,16 +399,7 @@ onMounted(() => {
   border-radius: var(--radius-md);
 }
 
-/* Empty States */
-.empty-state {
-  text-align: center;
-  padding: var(--spacing-5);
-  color: #6B7280;
-}
-
-.empty-state p {
-  margin-bottom: var(--spacing-3);
-}
+/* Empty States - Now handled by TestCaseEditor component */
 
 /* Form Actions */
 .form-actions {
@@ -576,7 +423,6 @@ onMounted(() => {
     align-items: stretch;
   }
   
-  .test-case-header,
   .option-header {
     flex-direction: column;
     gap: var(--spacing-2);

@@ -513,6 +513,8 @@ const saveTest = async () => {
       }
     }
     
+    // Success
+    
     toast.success('Prueba creada exitosamente')
     router.push('/admin/tests')
     
@@ -543,6 +545,11 @@ const getQuestionOptions = (question: any) => {
     return []
   }
 }
+
+// No autosave to prevent conflicts
+// onMounted(() => {
+//   // Autosave disabled temporarily
+// })
 </script>
 
 <style scoped>

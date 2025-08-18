@@ -148,12 +148,73 @@
           <div v-if="question.type === 'code'" class="form-group">
             <label class="input-label">Lenguaje de Programación</label>
             <select v-model="question.language" class="input select" required>
+            <optgroup label="🎯 Lenguajes de Evaluación Técnica">
+              <option value="tlang">TLang (Como EvalArt)</option>
+              <option value="pseudocode">Pseudocódigo</option>
+              <option value="algorithm">Descripción de Algoritmo</option>
+            </optgroup>
+            
+            <optgroup label="🔥 Más Populares">
               <option value="javascript">JavaScript</option>
               <option value="typescript">TypeScript</option>
               <option value="python">Python</option>
               <option value="java">Java</option>
               <option value="csharp">C#</option>
-            </select>
+            </optgroup>
+            
+            <optgroup label="🌐 Desarrollo Web">
+              <option value="html">HTML</option>
+              <option value="css">CSS</option>
+              <option value="php">PHP</option>
+              <option value="nodejs">Node.js</option>
+              <option value="react">React JSX</option>
+              <option value="vue">Vue.js</option>
+            </optgroup>
+            
+            <optgroup label="📱 Desarrollo Móvil">
+              <option value="swift">Swift</option>
+              <option value="kotlin">Kotlin</option>
+              <option value="dart">Dart (Flutter)</option>
+            </optgroup>
+            
+            <optgroup label="⚡ Sistemas">
+              <option value="rust">Rust</option>
+              <option value="go">Go</option>
+              <option value="cpp">C++</option>
+              <option value="c">C</option>
+            </optgroup>
+            
+            <optgroup label="🗄️ Bases de Datos">
+              <option value="sql">SQL</option>
+              <option value="mysql">MySQL</option>
+              <option value="postgresql">PostgreSQL</option>
+              <option value="plsql">PL/SQL</option>
+            </optgroup>
+            
+            <optgroup label="📊 Data Science">
+              <option value="r">R</option>
+              <option value="matlab">MATLAB</option>
+              <option value="julia">Julia</option>
+            </optgroup>
+            
+            <optgroup label="🔧 Scripting">
+              <option value="bash">Bash</option>
+              <option value="powershell">PowerShell</option>
+              <option value="ruby">Ruby</option>
+              <option value="perl">Perl</option>
+            </optgroup>
+            
+            <optgroup label="🏢 Empresariales">
+              <option value="cobol">COBOL</option>
+              <option value="vb">Visual Basic</option>
+              <option value="pascal">Pascal</option>
+            </optgroup>
+            
+            <optgroup label="⛓️ Blockchain">
+              <option value="solidity">Solidity</option>
+              <option value="vyper">Vyper</option>
+            </optgroup>
+          </select>
           </div>
 
           <div v-if="question.type === 'code'" class="form-group">
