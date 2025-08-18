@@ -85,7 +85,9 @@ router.post('/', async (req, res) => {
     // Save to file
     const fs = await import('fs');
     const path = await import('path');
-    const __dirname = path.dirname(new URL(import.meta.url).pathname);
+    const { fileURLToPath } = await import('url');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
     const dbPath = path.join(__dirname, '../database/data.json');
     fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 
@@ -148,7 +150,9 @@ router.post('/questions', async (req, res) => {
     // Save to file
     const fs = await import('fs');
     const path = await import('path');
-    const __dirname = path.dirname(new URL(import.meta.url).pathname);
+    const { fileURLToPath } = await import('url');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
     const dbPath = path.join(__dirname, '../database/data.json');
     fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 
@@ -156,6 +160,114 @@ router.post('/questions', async (req, res) => {
   } catch (error) {
     console.error('Error al crear pregunta:', error);
     res.status(500).json({ error: 'Error al crear pregunta' });
+  }
+});
+
+// Update existing test
+router.put('/:id', async (req, res) => {
+  try {
+    const testId = parseInt(req.params.id);
+    const { name, description, time_limit, is_active, questions } = req.body;
+    
+    // Find existing test
+    const testIndex = db.tests.findIndex(t => t.id === testId);
+    if (testIndex === -1) {
+      return res.status(404).json({ error: 'Prueba no encontrada' });
+    }
+
+    // Update test data
+    db.tests[testIndex] = {
+      ...db.tests[testIndex],
+      name,
+      description,
+      time_limit: time_limit || db.tests[testIndex].time_limit,
+      is_active: is_active !== undefined ? is_active : db.tests[testIndex].is_active,
+      updated_at: new Date().toISOString()
+    };
+
+    // Update questions if provided
+    if (questions && Array.isArray(questions)) {
+      // Remove existing questions for this test
+      db.questions = db.questions.filter(q => q.test_id !== testId);
+      
+      // Add updated questions
+      questions.forEach((question, index) => {
+        const newQuestion = {
+          id: Math.max(...db.questions.map(q => q.id), 0) + 1,
+          test_id: testId,
+          category_id: 1,
+          family_id: 1,
+          type: question.type,
+          title: question.title,
+          description: question.description || '',
+          difficulty: 'Medio',
+          max_score: 10,
+          order_index: index + 1,
+          initial_code: '',
+          language: question.language || 'javascript',
+          database_schema: '',
+          options: question.options || '',
+          correct_answer: question.correct_option_index !== undefined ? question.correct_option_index.toString() : '',
+          solution: question.solution || '',
+          sample_answer: question.sample_answer || '',
+          execution_timeout: 5000,
+          allow_partial_credit: true,
+          show_expected_output: false,
+          created_at: new Date().toISOString()
+        };
+        
+        db.questions.push(newQuestion);
+      });
+    }
+    
+    // Save to file
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const dbPath = path.join(__dirname, '../database/data.json');
+    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+
+    res.json({ test: db.tests[testIndex] });
+  } catch (error) {
+    console.error('Error al actualizar prueba:', error);
+    res.status(500).json({ error: 'Error al actualizar prueba' });
+  }
+});
+
+// Delete existing test
+router.delete('/:id', async (req, res) => {
+  try {
+    const testId = parseInt(req.params.id);
+    
+    // Find existing test
+    const testIndex = db.tests.findIndex(t => t.id === testId);
+    if (testIndex === -1) {
+      return res.status(404).json({ error: 'Prueba no encontrada' });
+    }
+
+    // Remove test
+    db.tests.splice(testIndex, 1);
+    
+    // Remove associated questions and test cases
+    const questionIds = db.questions.filter(q => q.test_id === testId).map(q => q.id);
+    db.questions = db.questions.filter(q => q.test_id !== testId);
+    db.test_cases = db.test_cases.filter(tc => !questionIds.includes(tc.question_id));
+    
+    // Save to file
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const dbPath = path.join(__dirname, '../database/data.json');
+    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+
+    res.json({ message: 'Prueba eliminada correctamente' });
+  } catch (error) {
+    console.error('Error al eliminar prueba:', error);
+    res.status(500).json({ error: 'Error al eliminar prueba' });
   }
 });
 
@@ -194,7 +306,9 @@ router.post('/test-cases', async (req, res) => {
     // Save to file
     const fs = await import('fs');
     const path = await import('path');
-    const __dirname = path.dirname(new URL(import.meta.url).pathname);
+    const { fileURLToPath } = await import('url');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
     const dbPath = path.join(__dirname, '../database/data.json');
     fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 

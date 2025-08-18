@@ -158,11 +158,18 @@
 
           <div v-if="question.type === 'code'" class="form-group">
             <label class="input-label">Solución Esperada</label>
-            <CodeEditor
+            <!-- <CodeEditor
               v-model="question.solution"
               :language="question.language || 'javascript'"
               height="200px"
-            />
+            /> -->
+            <textarea 
+              v-model="question.solution" 
+              placeholder="Escribe el código de la solución aquí..."
+              rows="10" 
+              class="input"
+              style="font-family: monospace; width: 100%; resize: vertical;">
+            </textarea>
           </div>
 
           <div v-if="question.type === 'text'" class="form-group">
@@ -202,8 +209,8 @@
             </button>
           </div>
         </div>
-      </form>
-    </div>
+      </div>
+    </form>
   </div>
 </template>
 
@@ -211,6 +218,7 @@
 import { ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
+import CodeEditor from '../../components/CodeEditor.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -242,6 +250,29 @@ const formData = ref({
   ]
 });
 
+// Funciones API
+const fetchTestById = async (id: any) => {
+  const response = await fetch(`/api/tests/${id}`);
+  if (!response.ok) throw new Error('Error al cargar la prueba');
+  return response.json();
+};
+
+const updateTest = async (id: any, data: any) => {
+  const response = await fetch(`/api/tests/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  if (!response.ok) throw new Error('Error al actualizar la prueba');
+  return response.json();
+};
+
+const deleteTest = async (id: any) => {
+  const response = await fetch(`/api/tests/${id}`, { method: 'DELETE' });
+  if (!response.ok) throw new Error('Error al eliminar la prueba');
+  return response.json();
+};
+
 // Cargar los datos de la prueba
 const fetchTest = async () => {
   try {
@@ -255,27 +286,46 @@ const fetchTest = async () => {
       description: test.description || '',
       timeLimit: test.time_limit,
       isActive: test.is_active,
-      questions: test.questions.map(q => {
+      questions: test.questions?.map((q: any) => {
         const baseQuestion = {
-          text: q.text,
-          type: q.type,
+          text: q.title || q.text,
+          type: q.type === 'programming' ? 'code' : q.type,
           language: q.language || 'javascript',
           solution: q.solution || '',
           sampleAnswer: q.sample_answer || ''
         };
 
         if (q.type === 'multiple_choice') {
+          let options;
+          try {
+            options = typeof q.options === 'string' ? JSON.parse(q.options) : q.options;
+          } catch {
+            options = [{ text: '', correct: true }, { text: '', correct: false }];
+          }
+          
           return {
             ...baseQuestion,
-            options: q.options?.map((opt, idx) => ({
-              text: opt.text,
-              isCorrect: idx === q.correct_option_index
-            })) || [{ text: '', isCorrect: true }, { text: '', isCorrect: false }]
+            options: options.map((opt: any) => ({
+              text: opt.text || opt,
+              isCorrect: opt.correct || false
+            }))
           };
         }
 
         return baseQuestion;
-      })
+      }) || [
+        {
+          text: '',
+          type: 'multiple_choice',
+          options: [
+            { text: '', isCorrect: true },
+            { text: '', isCorrect: false }
+          ],
+          language: 'javascript',
+          solution: '',
+          sampleAnswer: ''
+        }
+      ]
     };
   } catch (err) {
     console.error('Error al cargar la prueba:', err);
@@ -295,6 +345,7 @@ const handleSubmit = async () => {
     // Validar que al menos haya una pregunta
     if (formData.value.questions.length === 0) {
       toast.error('Debe haber al menos una pregunta en la prueba');
+      isSubmitting.value = false;
       return;
     }
     
@@ -302,6 +353,7 @@ const handleSubmit = async () => {
     for (const [index, question] of formData.value.questions.entries()) {
       if (!question.text.trim()) {
         toast.error(`La pregunta ${index + 1} no puede estar vacía`);
+        isSubmitting.value = false;
         return;
       }
       
@@ -309,18 +361,21 @@ const handleSubmit = async () => {
         const hasEmptyOption = question.options.some(opt => !opt.text.trim());
         if (hasEmptyOption) {
           toast.error(`Todas las opciones de la pregunta ${index + 1} deben tener texto`);
+          isSubmitting.value = false;
           return;
         }
         
         const hasCorrectAnswer = question.options.some(opt => opt.isCorrect);
         if (!hasCorrectAnswer) {
           toast.error(`Debe seleccionar la respuesta correcta para la pregunta ${index + 1}`);
+          isSubmitting.value = false;
           return;
         }
       }
       
       if (question.type === 'code' && !question.solution.trim()) {
         toast.error(`Debe proporcionar una solución para la pregunta de código ${index + 1}`);
+        isSubmitting.value = false;
         return;
       }
     }
@@ -333,8 +388,8 @@ const handleSubmit = async () => {
       is_active: formData.value.isActive,
       questions: formData.value.questions.map(q => {
         const baseQuestion = {
-          text: q.text,
-          type: q.type,
+          title: q.text,
+          type: q.type === 'code' ? 'programming' : q.type,
           language: q.language,
           solution: q.solution,
           sample_answer: q.sampleAnswer
@@ -343,7 +398,10 @@ const handleSubmit = async () => {
         if (q.type === 'multiple_choice') {
           return {
             ...baseQuestion,
-            options: q.options.map(opt => opt.text),
+            options: JSON.stringify(q.options.map(opt => ({
+              text: opt.text,
+              correct: opt.isCorrect
+            }))),
             correct_option_index: q.options.findIndex(opt => opt.isCorrect)
           };
         }
@@ -365,6 +423,25 @@ const handleSubmit = async () => {
   } finally {
     isSubmitting.value = false;
   }
+};
+
+// Confirmar eliminación de la prueba
+const confirmDelete = async () => {
+  if (confirm('¿Estás seguro de que quieres eliminar esta prueba? Esta acción no se puede deshacer.')) {
+    try {
+      await deleteTest(testId);
+      toast.success('Prueba eliminada correctamente');
+      router.push('/admin/tests');
+    } catch (err) {
+      console.error('Error al eliminar la prueba:', err);
+      toast.error('Error al eliminar la prueba');
+    }
+  }
+};
+
+// Volver a la lista
+const goBack = () => {
+  router.push('/admin/tests');
 };
 
 // Añadir nueva pregunta
@@ -426,6 +503,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
+
 .edit-test-container {
   max-width: 1000px;
   margin: 0 auto;
@@ -586,6 +664,33 @@ onMounted(() => {
   font-size: 1.25rem;
 }
 
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.right-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn-danger {
+  background-color: var(--error);
+  color: var(--blanco);
+}
+
+.btn-danger:hover {
+  background-color: #dc2626;
+}
+
+.mt-1 {
+  margin-top: 0.5rem;
+}
+
 @media (max-width: 768px) {
   .edit-test-container {
     padding: 1rem;
@@ -599,6 +704,16 @@ onMounted(() => {
   
   .actions {
     flex-direction: column;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .right-actions {
+    flex-direction: column;
+    width: 100%;
   }
   
   .btn {

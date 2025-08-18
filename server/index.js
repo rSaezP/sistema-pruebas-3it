@@ -39,17 +39,30 @@ app.use('/api/evaluation', evaluationRoutes);
 app.use('/api/evaluation', evaluationExtraRoutes);
 app.use('/api/email', emailRoutes);
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Sistema de Pruebas Técnicas 3IT - API funcionando',
+    endpoints: [
+      '/api/tests',
+      '/api/candidates', 
+      '/api/sessions',
+      '/api/reports'
+    ]
+  });
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Error handling middleware
+// Error handling
 app.use((error, req, res, next) => {
   console.error('Error:', error);
   res.status(500).json({ 
     error: 'Error interno del servidor',
-    message: process.env.NODE_ENV === 'development' ? error.message : 'Error interno'
+    message: error.message
   });
 });
 
