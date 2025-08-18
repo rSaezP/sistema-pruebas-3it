@@ -13,6 +13,11 @@ export default defineConfig({
       '@': path.resolve(__dirname, 'src')
     }
   },
+  optimizeDeps: {
+    force: true,
+    exclude: []
+  },
+  cacheDir: '.vite',
   server: {
     port: 5173,
     hmr: {
@@ -20,15 +25,18 @@ export default defineConfig({
       port: 5174
     },
     watch: {
-      usePolling: false,
+      usePolling: true,
+      interval: 1000,
       ignored: [
         '**/node_modules/**',
         '**/.git/**',
-        '**/dist/**'
+        '**/dist/**',
+        '**/.vite/**'
       ]
     },
     fs: {
-      strict: false
+      strict: false,
+      allow: ['..']
     },
     proxy: {
       '/api': {
