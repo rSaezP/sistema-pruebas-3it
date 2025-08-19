@@ -56,14 +56,43 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 
-const totalTests = ref(1);
-const totalCandidates = ref(1);
+const totalTests = ref(0);
+const totalCandidates = ref(0);
 const completedSessions = ref(0);
 const averageScore = ref(0);
 
+const loadDashboardStats = async () => {
+  try {
+    // Cargar pruebas
+    const testsResponse = await fetch('/api/tests');
+    const tests = await testsResponse.json();
+    totalTests.value = tests.length;
+    
+    // Cargar candidatos
+    const candidatesResponse = await fetch('/api/candidates');
+    const candidates = await candidatesResponse.json();
+    totalCandidates.value = candidates.length;
+    
+    // Cargar sesiones
+    const sessionsResponse = await fetch('/api/sessions');
+    const sessions = await sessionsResponse.json();
+    const completed = sessions.filter((s: any) => s.status === 'completed');
+    completedSessions.value = completed.length;
+    
+    // Calcular promedio
+    if (completed.length > 0) {
+      const total = completed.reduce((sum: number, s: any) => sum + (s.percentage_score || 0), 0);
+      averageScore.value = Math.round(total / completed.length);
+    }
+    
+    console.log('Dashboard cargado con datos reales');
+  } catch (error) {
+    console.error('Error cargando estadísticas:', error);
+  }
+};
+
 onMounted(() => {
-  // Cargar estadísticas básicas
-  console.log('Dashboard cargado');
+  loadDashboardStats();
 });
 </script>
 

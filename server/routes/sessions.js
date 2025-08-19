@@ -3,45 +3,61 @@ import { db } from '../database/init.js';
 
 const router = express.Router();
 
+// Get all sessions
+router.get('/', (req, res) => {
+  try {
+    const sessionsQuery = `
+      SELECT s.*, t.name as test_name, c.name as candidate_name, c.email as candidate_email
+      FROM test_sessions s
+      LEFT JOIN tests t ON s.test_id = t.id
+      LEFT JOIN candidates c ON s.candidate_id = c.id
+      ORDER BY s.created_at DESC
+    `;
+    
+    const sessions = db.prepare(sessionsQuery).all();
+    res.json(sessions);
+  } catch (error) {
+    console.error('Error al obtener sesiones:', error);
+    res.status(500).json({ error: 'Error al obtener sesiones' });
+  }
+});
+
 // Get test session by token (public endpoint for candidates)
 router.get('/token/:token', (req, res) => {
-  const { token } = req.params;
+  try {
+    const { token } = req.params;
 
-  const query = `
-    SELECT ts.*, t.name as test_name, t.description as test_description, t.time_limit,
-           c.name as candidate_name, c.email as candidate_email
-    FROM test_sessions ts
-    JOIN tests t ON ts.test_id = t.id
-    JOIN candidates c ON ts.candidate_id = c.id
-    WHERE ts.token = ?
-  `;
+    const sessionQuery = `
+      SELECT s.*, t.name as test_name, t.description as test_description, t.time_limit,
+             c.name as candidate_name, c.email as candidate_email
+      FROM test_sessions s
+      LEFT JOIN tests t ON s.test_id = t.id
+      LEFT JOIN candidates c ON s.candidate_id = c.id
+      WHERE s.token = ?
+    `;
 
-  db.get(query, [token], (err, session) => {
-    if (err) {
-      console.error('Error al obtener sesión:', err);
-      return res.status(500).json({ error: 'Error al obtener sesión' });
-    }
-
+    const session = db.prepare(sessionQuery).get(token);
+    
     if (!session) {
       return res.status(404).json({ error: 'Sesión no encontrada' });
     }
 
     res.json(session);
-  });
+  } catch (error) {
+    console.error('Error al obtener sesión:', error);
+    res.status(500).json({ error: 'Error al obtener sesión' });
+  }
 });
 
 // Start test session
 router.post('/:token/start', (req, res) => {
-  const { token } = req.params;
-  const { browserInfo, ipAddress } = req.body;
+  try {
+    const { token } = req.params;
+    const { browserInfo, ipAddress } = req.body;
 
-  // Get session
-  db.get('SELECT * FROM test_sessions WHERE token = ?', [token], (err, session) => {
-    if (err) {
-      console.error('Error al obtener sesión:', err);
-      return res.status(500).json({ error: 'Error al obtener sesión' });
-    }
-
+    // Find session
+    const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
+    
     if (!session) {
       return res.status(404).json({ error: 'Sesión no encontrada' });
     }
@@ -53,171 +69,156 @@ router.post('/:token/start', (req, res) => {
     // Update session to started
     const updateQuery = `
       UPDATE test_sessions 
-      SET status = 'in_progress', 
-          started_at = CURRENT_TIMESTAMP,
-          browser_info = ?,
-          ip_address = ?
+      SET status = 'in_progress', started_at = ?, browser_info = ?, ip_address = ?, updated_at = ?
       WHERE token = ?
     `;
+    
+    const timestamp = new Date().toISOString();
+    const values = [
+      timestamp,
+      JSON.stringify(browserInfo || {}),
+      ipAddress || '',
+      timestamp,
+      token
+    ];
 
-    db.run(updateQuery, [JSON.stringify(browserInfo), ipAddress, token], function(err) {
-      if (err) {
-        console.error('Error al iniciar sesión:', err);
-        return res.status(500).json({ error: 'Error al iniciar sesión' });
-      }
+    db.prepare(updateQuery).run(...values);
 
-      // Get test questions
-      const questionsQuery = `
-        SELECT q.*, c.name as category_name, c.color as category_color
-        FROM questions q
-        LEFT JOIN categories c ON q.category_id = c.id
-        WHERE q.test_id = ?
-        ORDER BY q.order_index
-      `;
+    // Get test questions
+    const questionsQuery = `
+      SELECT q.*, c.name as category_name, c.color as category_color
+      FROM questions q
+      LEFT JOIN categories c ON q.category_id = c.id
+      WHERE q.test_id = ?
+      ORDER BY q.order_index
+    `;
 
-      db.all(questionsQuery, [session.test_id], (err, questions) => {
-        if (err) {
-          console.error('Error al obtener preguntas:', err);
-          return res.status(500).json({ error: 'Error al obtener preguntas' });
-        }
+    const questions = db.prepare(questionsQuery).all(session.test_id);
 
-        // Get test cases for programming questions (only non-hidden ones)
-        const programmingQuestions = questions.filter(q => q.type === 'programming');
-        
-        if (programmingQuestions.length === 0) {
-          return res.json({ 
-            session: { ...session, status: 'in_progress' }, 
-            questions: questions.map(q => ({ ...q, testCases: [] }))
-          });
-        }
-
-        const questionIds = programmingQuestions.map(q => q.id);
-        const testCasesQuery = `
-          SELECT * FROM test_cases 
-          WHERE question_id IN (${questionIds.map(() => '?').join(',')}) AND is_hidden = 0
-          ORDER BY question_id, id
-        `;
-
-        db.all(testCasesQuery, questionIds, (err, testCases) => {
-          if (err) {
-            console.error('Error al obtener casos de prueba:', err);
-            return res.status(500).json({ error: 'Error al obtener casos de prueba' });
-          }
-
-          // Group test cases by question
-          const testCasesByQuestion = testCases.reduce((acc, testCase) => {
-            if (!acc[testCase.question_id]) {
-              acc[testCase.question_id] = [];
-            }
-            acc[testCase.question_id].push(testCase);
-            return acc;
-          }, {});
-
-          // Add test cases to questions
-          questions.forEach(question => {
-            question.testCases = testCasesByQuestion[question.id] || [];
-          });
-
-          res.json({ 
-            session: { ...session, status: 'in_progress' }, 
-            questions 
-          });
-        });
+    // Get test cases for each question (non-hidden only)
+    const questionIds = questions.map(q => q.id);
+    
+    if (questionIds.length === 0) {
+      return res.json({ 
+        session: { ...session, status: 'in_progress', started_at: timestamp }, 
+        questions: [] 
       });
+    }
+
+    const testCasesQuery = `
+      SELECT * FROM test_cases 
+      WHERE question_id IN (${questionIds.map(() => '?').join(',')}) AND is_hidden = 0
+      ORDER BY question_id, id
+    `;
+
+    const testCases = db.prepare(testCasesQuery).all(...questionIds);
+
+    // Group test cases by question
+    const testCasesByQuestion = testCases.reduce((acc, testCase) => {
+      if (!acc[testCase.question_id]) {
+        acc[testCase.question_id] = [];
+      }
+      acc[testCase.question_id].push(testCase);
+      return acc;
+    }, {});
+
+    // Add test cases to questions
+    questions.forEach(question => {
+      question.testCases = testCasesByQuestion[question.id] || [];
     });
-  });
+
+    res.json({ 
+      session: { ...session, status: 'in_progress', started_at: timestamp }, 
+      questions 
+    });
+  } catch (error) {
+    console.error('Error al iniciar sesión:', error);
+    res.status(500).json({ error: 'Error al iniciar sesión' });
+  }
 });
 
 // Submit answer
 router.post('/:token/answer', (req, res) => {
-  const { token } = req.params;
-  const { questionId, answer, timeSpent } = req.body;
+  try {
+    const { token } = req.params;
+    const { questionId, answer, timeSpent } = req.body;
 
-  // Get session
-  db.get('SELECT * FROM test_sessions WHERE token = ?', [token], (err, session) => {
-    if (err) {
-      console.error('Error al obtener sesión:', err);
-      return res.status(500).json({ error: 'Error al obtener sesión' });
-    }
-
+    // Find session
+    const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
+    
     if (!session || session.status !== 'in_progress') {
       return res.status(400).json({ error: 'Sesión inválida o no activa' });
     }
 
-    // Get question details
-    db.get('SELECT * FROM questions WHERE id = ?', [questionId], (err, question) => {
-      if (err) {
-        console.error('Error al obtener pregunta:', err);
-        return res.status(500).json({ error: 'Error al obtener pregunta' });
-      }
+    // Find question
+    const question = db.prepare('SELECT * FROM questions WHERE id = ?').get(parseInt(questionId));
+    
+    if (!question) {
+      return res.status(404).json({ error: 'Pregunta no encontrada' });
+    }
 
-      if (!question) {
-        return res.status(404).json({ error: 'Pregunta no encontrada' });
-      }
+    // Check if answer already exists
+    const existingAnswer = db.prepare(`
+      SELECT * FROM answers 
+      WHERE session_id = ? AND question_id = ?
+    `).get(session.id, parseInt(questionId));
 
-      // Check if answer already exists
-      db.get('SELECT * FROM answers WHERE session_id = ? AND question_id = ?', 
-        [session.id, questionId], (err, existingAnswer) => {
-        
-        if (err) {
-          console.error('Error al verificar respuesta:', err);
-          return res.status(500).json({ error: 'Error al verificar respuesta' });
-        }
+    const timestamp = new Date().toISOString();
 
-        const answerData = {
-          answer_text: answer,
-          time_spent_seconds: timeSpent || 0,
-          max_score: question.max_score
-        };
+    if (existingAnswer) {
+      // Update existing answer
+      const updateQuery = `
+        UPDATE answers 
+        SET answer_text = ?, time_spent_seconds = ?, last_modified_at = ?, attempts_count = ?
+        WHERE session_id = ? AND question_id = ?
+      `;
+      
+      const values = [
+        answer,
+        timeSpent || 0,
+        timestamp,
+        (existingAnswer.attempts_count || 0) + 1,
+        session.id,
+        parseInt(questionId)
+      ];
 
-        if (existingAnswer) {
-          // Update existing answer
-          const updateQuery = `
-            UPDATE answers 
-            SET answer_text = ?, time_spent_seconds = ?, last_modified_at = CURRENT_TIMESTAMP,
-                attempts_count = attempts_count + 1
-            WHERE id = ?
-          `;
+      db.prepare(updateQuery).run(...values);
+      res.json({ message: 'Respuesta actualizada exitosamente' });
+    } else {
+      // Create new answer
+      const insertQuery = `
+        INSERT INTO answers (session_id, question_id, answer_text, time_spent_seconds, max_score, attempts_count, created_at, last_modified_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      
+      const values = [
+        session.id,
+        parseInt(questionId),
+        answer,
+        timeSpent || 0,
+        question.max_score,
+        1,
+        timestamp,
+        timestamp
+      ];
 
-          db.run(updateQuery, [answer, timeSpent || 0, existingAnswer.id], function(err) {
-            if (err) {
-              console.error('Error al actualizar respuesta:', err);
-              return res.status(500).json({ error: 'Error al actualizar respuesta' });
-            }
-
-            res.json({ message: 'Respuesta actualizada exitosamente' });
-          });
-        } else {
-          // Insert new answer
-          const insertQuery = `
-            INSERT INTO answers (session_id, question_id, answer_text, time_spent_seconds, max_score)
-            VALUES (?, ?, ?, ?, ?)
-          `;
-
-          db.run(insertQuery, [session.id, questionId, answer, timeSpent || 0, question.max_score], function(err) {
-            if (err) {
-              console.error('Error al guardar respuesta:', err);
-              return res.status(500).json({ error: 'Error al guardar respuesta' });
-            }
-
-            res.json({ message: 'Respuesta guardada exitosamente', answerId: this.lastID });
-          });
-        }
-      });
-    });
-  });
+      db.prepare(insertQuery).run(...values);
+      res.json({ message: 'Respuesta guardada exitosamente' });
+    }
+  } catch (error) {
+    console.error('Error al guardar respuesta:', error);
+    res.status(500).json({ error: 'Error al guardar respuesta' });
+  }
 });
 
 // Finish test session
 router.post('/:token/finish', (req, res) => {
-  const { token } = req.params;
+  try {
+    const { token } = req.params;
 
-  db.get('SELECT * FROM test_sessions WHERE token = ?', [token], (err, session) => {
-    if (err) {
-      console.error('Error al obtener sesión:', err);
-      return res.status(500).json({ error: 'Error al obtener sesión' });
-    }
-
+    // Find session
+    const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
+    
     if (!session) {
       return res.status(404).json({ error: 'Sesión no encontrada' });
     }
@@ -230,25 +231,24 @@ router.post('/:token/finish', (req, res) => {
     const startTime = new Date(session.started_at);
     const currentTime = new Date();
     const timeSpentSeconds = Math.floor((currentTime - startTime) / 1000);
+    const timestamp = new Date().toISOString();
 
     // Update session status
     const updateQuery = `
       UPDATE test_sessions 
-      SET status = 'completed', 
-          finished_at = CURRENT_TIMESTAMP,
-          time_spent_seconds = ?
+      SET status = 'completed', completed_at = ?, time_spent_seconds = ?, updated_at = ?
       WHERE token = ?
     `;
+    
+    const values = [timestamp, timeSpentSeconds, timestamp, token];
 
-    db.run(updateQuery, [timeSpentSeconds, token], function(err) {
-      if (err) {
-        console.error('Error al finalizar sesión:', err);
-        return res.status(500).json({ error: 'Error al finalizar sesión' });
-      }
+    db.prepare(updateQuery).run(...values);
 
-      res.json({ message: 'Prueba finalizada exitosamente', timeSpent: timeSpentSeconds });
-    });
-  });
+    res.json({ message: 'Prueba finalizada exitosamente', timeSpent: timeSpentSeconds });
+  } catch (error) {
+    console.error('Error al finalizar sesión:', error);
+    res.status(500).json({ error: 'Error al finalizar sesión' });
+  }
 });
 
 export default router;

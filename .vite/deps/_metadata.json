@@ -1,37 +1,37 @@
 {
-  "hash": "c56cc024",
+  "hash": "6954103d",
   "configHash": "5e6e2b0a",
-  "lockfileHash": "4dfd9a96",
-  "browserHash": "de926580",
+  "lockfileHash": "a567ba94",
+  "browserHash": "952a608b",
   "optimized": {
     "chart.js": {
       "src": "../../node_modules/chart.js/dist/chart.js",
       "file": "chart__js.js",
-      "fileHash": "971418b1",
+      "fileHash": "2feb465d",
       "needsInterop": false
     },
     "pinia": {
       "src": "../../node_modules/pinia/dist/pinia.mjs",
       "file": "pinia.js",
-      "fileHash": "6cd299a5",
+      "fileHash": "3ca4fdbc",
       "needsInterop": false
     },
     "vue": {
       "src": "../../node_modules/vue/dist/vue.runtime.esm-bundler.js",
       "file": "vue.js",
-      "fileHash": "c7fc2613",
+      "fileHash": "36e26769",
       "needsInterop": false
     },
     "vue-router": {
       "src": "../../node_modules/vue-router/dist/vue-router.mjs",
       "file": "vue-router.js",
-      "fileHash": "384c2edf",
+      "fileHash": "d937e4ea",
       "needsInterop": false
     },
     "vue-toastification": {
       "src": "../../node_modules/vue-toastification/dist/index.mjs",
       "file": "vue-toastification.js",
-      "fileHash": "4cffa6b1",
+      "fileHash": "ae7c5d29",
       "needsInterop": false
     }
   },

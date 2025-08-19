@@ -6,22 +6,18 @@ const router = express.Router();
 // Get all tests
 router.get('/', (req, res) => {
   try {
-    // Get tests with session statistics
-    const tests = db.tests.map(test => {
-      const sessions = db.test_sessions.filter(s => s.test_id === test.id);
-      const completedSessions = sessions.filter(s => s.status === 'completed');
-      const avgScore = completedSessions.length > 0 
-        ? completedSessions.reduce((sum, s) => sum + (s.percentage_score || 0), 0) / completedSessions.length
-        : 0;
+    const testsQuery = `
+      SELECT t.*,
+             COUNT(DISTINCT s.id) as total_sessions,
+             COUNT(DISTINCT CASE WHEN s.status = 'completed' THEN s.id END) as completed_sessions,
+             AVG(CASE WHEN s.status = 'completed' THEN s.percentage_score END) as avg_score
+      FROM tests t
+      LEFT JOIN test_sessions s ON t.id = s.test_id
+      GROUP BY t.id
+      ORDER BY t.created_at DESC
+    `;
 
-      return {
-        ...test,
-        total_sessions: sessions.length,
-        completed_sessions: completedSessions.length,
-        avg_score: avgScore
-      };
-    });
-
+    const tests = db.prepare(testsQuery).all();
     res.json(tests);
   } catch (error) {
     console.error('Error al obtener pruebas:', error);
@@ -35,25 +31,52 @@ router.get('/:id', (req, res) => {
     const testId = parseInt(req.params.id);
     
     // Get test details
-    const test = db.tests.find(t => t.id === testId);
+    const testQuery = 'SELECT * FROM tests WHERE id = ?';
+    const test = db.prepare(testQuery).get(testId);
+    
     if (!test) {
       return res.status(404).json({ error: 'Prueba no encontrada' });
     }
 
     // Get questions for this test
-    const questions = db.questions.filter(q => q.test_id === testId)
-      .map(question => {
-        const category = db.categories.find(c => c.id === question.category_id);
-        const testCases = db.test_cases.filter(tc => tc.question_id === question.id);
-        
-        return {
-          ...question,
-          category_name: category?.name || '',
-          category_color: category?.color || '#005AEE',
-          test_cases: testCases
-        };
-      })
-      .sort((a, b) => a.order_index - b.order_index);
+    const questionsQuery = `
+      SELECT q.*, c.name as category_name, c.color as category_color
+      FROM questions q
+      LEFT JOIN categories c ON q.category_id = c.id
+      WHERE q.test_id = ?
+      ORDER BY q.order_index
+    `;
+
+    const questions = db.prepare(questionsQuery).all(testId);
+
+    // Get test cases for each question
+    const questionIds = questions.map(q => q.id);
+    
+    if (questionIds.length === 0) {
+      return res.json({ ...test, questions: [] });
+    }
+
+    const testCasesQuery = `
+      SELECT * FROM test_cases 
+      WHERE question_id IN (${questionIds.map(() => '?').join(',')})
+      ORDER BY question_id, id
+    `;
+
+    const testCases = db.prepare(testCasesQuery).all(...questionIds);
+
+    // Group test cases by question
+    const testCasesByQuestion = testCases.reduce((acc, testCase) => {
+      if (!acc[testCase.question_id]) {
+        acc[testCase.question_id] = [];
+      }
+      acc[testCase.question_id].push(testCase);
+      return acc;
+    }, {});
+
+    // Add test cases to questions
+    questions.forEach(question => {
+      question.test_cases = testCasesByQuestion[question.id] || [];
+    });
 
     res.json({ ...test, questions });
   } catch (error) {
@@ -63,33 +86,46 @@ router.get('/:id', (req, res) => {
 });
 
 // Create new test
-router.post('/', async (req, res) => {
+router.post('/', (req, res) => {
   try {
     const { name, description, time_limit, max_attempts, passing_score, is_active, created_by } = req.body;
     
-    const newTest = {
-      id: Math.max(...db.tests.map(t => t.id), 0) + 1,
+    if (!name) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+
+    const insertQuery = `
+      INSERT INTO tests (name, description, time_limit, max_attempts, passing_score, is_active, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const timestamp = new Date().toISOString();
+    const values = [
       name,
-      description,
+      description || '',
+      time_limit || 60,
+      max_attempts || 1,
+      passing_score || 60.0,
+      is_active !== undefined ? (is_active ? 1 : 0) : 1,
+      created_by || 'admin',
+      timestamp,
+      timestamp
+    ];
+
+    const result = db.prepare(insertQuery).run(...values);
+
+    const newTest = {
+      id: result.lastInsertRowid,
+      name,
+      description: description || '',
       time_limit: time_limit || 60,
       max_attempts: max_attempts || 1,
       passing_score: passing_score || 60.0,
       is_active: is_active !== undefined ? is_active : true,
       created_by: created_by || 'admin',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      created_at: timestamp,
+      updated_at: timestamp
     };
-
-    db.tests.push(newTest);
-    
-    // Save to file
-    const fs = await import('fs');
-    const path = await import('path');
-    const { fileURLToPath } = await import('url');
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    const dbPath = path.join(__dirname, '../database/data.json');
-    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 
     res.status(201).json({ test: newTest });
   } catch (error) {
@@ -99,7 +135,7 @@ router.post('/', async (req, res) => {
 });
 
 // Create new question
-router.post('/questions', async (req, res) => {
+router.post('/questions', (req, res) => {
   try {
     const { 
       test_id, 
@@ -123,8 +159,37 @@ router.post('/questions', async (req, res) => {
       return res.status(400).json({ error: 'Faltan campos requeridos' });
     }
 
+    const insertQuery = `
+      INSERT INTO questions (test_id, category_id, family_id, type, title, description, difficulty, max_score, order_index, initial_code, language, database_schema, options, correct_answer, execution_timeout, allow_partial_credit, show_expected_output, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const timestamp = new Date().toISOString();
+    const values = [
+      parseInt(test_id),
+      category_id || 1,
+      family_id || 1,
+      type,
+      title,
+      description,
+      difficulty || 'Medio',
+      max_score || 10,
+      order_index || 1,
+      initial_code || '',
+      language || 'javascript',
+      database_schema || '',
+      typeof options === 'object' ? JSON.stringify(options) : (options || ''),
+      correct_answer || '',
+      5000,
+      1,
+      0,
+      timestamp
+    ];
+
+    const result = db.prepare(insertQuery).run(...values);
+
     const newQuestion = {
-      id: Math.max(...db.questions.map(q => q.id), 0) + 1,
+      id: result.lastInsertRowid,
       test_id: parseInt(test_id),
       category_id: category_id || 1,
       family_id: family_id || 1,
@@ -142,19 +207,8 @@ router.post('/questions', async (req, res) => {
       execution_timeout: 5000,
       allow_partial_credit: true,
       show_expected_output: false,
-      created_at: new Date().toISOString()
+      created_at: timestamp
     };
-
-    db.questions.push(newQuestion);
-    
-    // Save to file
-    const fs = await import('fs');
-    const path = await import('path');
-    const { fileURLToPath } = await import('url');
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    const dbPath = path.join(__dirname, '../database/data.json');
-    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 
     res.status(201).json({ question: newQuestion });
   } catch (error) {
@@ -164,72 +218,83 @@ router.post('/questions', async (req, res) => {
 });
 
 // Update existing test
-router.put('/:id', async (req, res) => {
+router.put('/:id', (req, res) => {
   try {
     const testId = parseInt(req.params.id);
     const { name, description, time_limit, is_active, questions } = req.body;
     
-    // Find existing test
-    const testIndex = db.tests.findIndex(t => t.id === testId);
-    if (testIndex === -1) {
+    // Check if test exists
+    const existingTest = db.prepare('SELECT * FROM tests WHERE id = ?').get(testId);
+    
+    if (!existingTest) {
       return res.status(404).json({ error: 'Prueba no encontrada' });
     }
 
     // Update test data
-    db.tests[testIndex] = {
-      ...db.tests[testIndex],
-      name,
-      description,
-      time_limit: time_limit || db.tests[testIndex].time_limit,
-      is_active: is_active !== undefined ? is_active : db.tests[testIndex].is_active,
-      updated_at: new Date().toISOString()
-    };
-
-    // Update questions if provided
-    if (questions && Array.isArray(questions)) {
-      // Remove existing questions for this test
-      db.questions = db.questions.filter(q => q.test_id !== testId);
-      
-      // Add updated questions
-      questions.forEach((question, index) => {
-        const newQuestion = {
-          id: Math.max(...db.questions.map(q => q.id), 0) + 1,
-          test_id: testId,
-          category_id: 1,
-          family_id: 1,
-          type: question.type,
-          title: question.title,
-          description: question.description || '',
-          difficulty: 'Medio',
-          max_score: 10,
-          order_index: index + 1,
-          initial_code: '',
-          language: question.language || 'javascript',
-          database_schema: '',
-          options: question.options || '',
-          correct_answer: question.correct_option_index !== undefined ? question.correct_option_index.toString() : '',
-          solution: question.solution || '',
-          sample_answer: question.sample_answer || '',
-          execution_timeout: 5000,
-          allow_partial_credit: true,
-          show_expected_output: false,
-          created_at: new Date().toISOString()
-        };
-        
-        db.questions.push(newQuestion);
-      });
-    }
+    const updateQuery = `
+      UPDATE tests 
+      SET name = ?, description = ?, time_limit = ?, is_active = ?, updated_at = ?
+      WHERE id = ?
+    `;
     
-    // Save to file
-    const fs = await import('fs');
-    const path = await import('path');
-    const { fileURLToPath } = await import('url');
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    const dbPath = path.join(__dirname, '../database/data.json');
-    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+    const timestamp = new Date().toISOString();
+    const values = [
+      name || existingTest.name,
+      description !== undefined ? description : existingTest.description,
+      time_limit || existingTest.time_limit,
+      is_active !== undefined ? (is_active ? 1 : 0) : existingTest.is_active,
+      timestamp,
+      testId
+    ];
 
-    res.json({ test: db.tests[testIndex] });
+    db.prepare(updateQuery).run(...values);
+
+    // Handle questions update if provided
+    if (questions && Array.isArray(questions)) {
+      // Start transaction for questions update
+      const transaction = db.transaction(() => {
+        // Remove existing questions and test cases for this test
+        db.prepare('DELETE FROM test_cases WHERE question_id IN (SELECT id FROM questions WHERE test_id = ?)').run(testId);
+        db.prepare('DELETE FROM questions WHERE test_id = ?').run(testId);
+        
+        // Add updated questions
+        const questionQuery = `
+          INSERT INTO questions (test_id, category_id, family_id, type, title, description, difficulty, max_score, order_index, initial_code, language, database_schema, options, correct_answer, execution_timeout, allow_partial_credit, show_expected_output, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        
+        const insertQuestion = db.prepare(questionQuery);
+        
+        questions.forEach((question, index) => {
+          const questionValues = [
+            testId,
+            1,
+            1,
+            question.type,
+            question.title,
+            question.description || '',
+            'Medio',
+            10,
+            index + 1,
+            '',
+            question.language || 'javascript',
+            '',
+            typeof question.options === 'object' ? JSON.stringify(question.options) : (question.options || ''),
+            question.correct_option_index !== undefined ? question.correct_option_index.toString() : '',
+            5000,
+            1,
+            0,
+            timestamp
+          ];
+          
+          insertQuestion.run(...questionValues);
+        });
+      });
+      
+      transaction();
+    }
+
+    res.json({ message: 'Prueba actualizada correctamente' });
   } catch (error) {
     console.error('Error al actualizar prueba:', error);
     res.status(500).json({ error: 'Error al actualizar prueba' });
@@ -237,33 +302,33 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete existing test
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', (req, res) => {
   try {
     const testId = parseInt(req.params.id);
     
-    // Find existing test
-    const testIndex = db.tests.findIndex(t => t.id === testId);
-    if (testIndex === -1) {
+    // Check if test exists
+    const test = db.prepare('SELECT * FROM tests WHERE id = ?').get(testId);
+    
+    if (!test) {
       return res.status(404).json({ error: 'Prueba no encontrada' });
     }
 
-    // Remove test
-    db.tests.splice(testIndex, 1);
+    // Start transaction to delete test and related data
+    const transaction = db.transaction(() => {
+      // Delete test cases first (foreign key constraint)
+      db.prepare('DELETE FROM test_cases WHERE question_id IN (SELECT id FROM questions WHERE test_id = ?)').run(testId);
+      
+      // Delete questions
+      db.prepare('DELETE FROM questions WHERE test_id = ?').run(testId);
+      
+      // Delete test sessions
+      db.prepare('DELETE FROM test_sessions WHERE test_id = ?').run(testId);
+      
+      // Finally delete the test
+      db.prepare('DELETE FROM tests WHERE id = ?').run(testId);
+    });
     
-    // Remove associated questions and test cases
-    const questionIds = db.questions.filter(q => q.test_id === testId).map(q => q.id);
-    db.questions = db.questions.filter(q => q.test_id !== testId);
-    db.test_cases = db.test_cases.filter(tc => !questionIds.includes(tc.question_id));
-    
-    // Save to file
-    const fs = await import('fs');
-    const path = await import('path');
-    const { fileURLToPath } = await import('url');
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    const dbPath = path.join(__dirname, '../database/data.json');
-    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
-
+    transaction();
     res.json({ message: 'Prueba eliminada correctamente' });
   } catch (error) {
     console.error('Error al eliminar prueba:', error);
@@ -272,7 +337,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 // Create new test case
-router.post('/test-cases', async (req, res) => {
+router.post('/test-cases', (req, res) => {
   try {
     const { 
       question_id,
@@ -289,8 +354,27 @@ router.post('/test-cases', async (req, res) => {
       return res.status(400).json({ error: 'Faltan campos requeridos para el caso de prueba' });
     }
 
+    const insertQuery = `
+      INSERT INTO test_cases (question_id, name, input_data, expected_output, is_hidden, weight, timeout_ms, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const timestamp = new Date().toISOString();
+    const values = [
+      parseInt(question_id),
+      name,
+      input_data,
+      expected_output,
+      is_hidden ? 1 : 0,
+      weight || 1.0,
+      timeout_ms || 5000,
+      timestamp
+    ];
+
+    const result = db.prepare(insertQuery).run(...values);
+
     const newTestCase = {
-      id: Math.max(...db.test_cases.map(tc => tc.id), 0) + 1,
+      id: result.lastInsertRowid,
       question_id: parseInt(question_id),
       name,
       input_data,
@@ -298,19 +382,8 @@ router.post('/test-cases', async (req, res) => {
       is_hidden: is_hidden || false,
       weight: weight || 1.0,
       timeout_ms: timeout_ms || 5000,
-      created_at: new Date().toISOString()
+      created_at: timestamp
     };
-
-    db.test_cases.push(newTestCase);
-    
-    // Save to file
-    const fs = await import('fs');
-    const path = await import('path');
-    const { fileURLToPath } = await import('url');
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    const dbPath = path.join(__dirname, '../database/data.json');
-    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
 
     res.status(201).json({ testCase: newTestCase });
   } catch (error) {
