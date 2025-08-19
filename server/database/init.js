@@ -12,6 +12,8 @@ const dbPath = path.join(__dirname, 'pruebas_3it.db');
 const db = new Database(dbPath);
 console.log('✅ Conectado a la base de datos SQLite:', dbPath);
 
+// Configuración básica de SQLite (sin pragmas que puedan causar bloqueos)
+
 // Crear tablas solo si no existen (seguro)
 console.log('🔧 Verificando estructura de base de datos...');
 
@@ -103,10 +105,41 @@ try {
     phone TEXT,
     position_applied TEXT,
     experience_level TEXT,
+    test_id INTEGER,
+    expires_at TEXT,
+    status TEXT DEFAULT 'pending',
+    session_token TEXT,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (test_id) REFERENCES tests (id)
   )`);
-  console.log('✅ Tabla candidates verificada');
+  
+  // Agregar columnas faltantes si la tabla ya existe
+  try {
+    db.exec(`ALTER TABLE candidates ADD COLUMN test_id INTEGER`);
+  } catch(e) {
+    // Columna ya existe, continuar
+  }
+  
+  try {
+    db.exec(`ALTER TABLE candidates ADD COLUMN expires_at TEXT`);
+  } catch(e) {
+    // Columna ya existe, continuar
+  }
+  
+  try {
+    db.exec(`ALTER TABLE candidates ADD COLUMN status TEXT DEFAULT 'pending'`);
+  } catch(e) {
+    // Columna ya existe, continuar
+  }
+  
+  try {
+    db.exec(`ALTER TABLE candidates ADD COLUMN session_token TEXT`);
+  } catch(e) {
+    // Columna ya existe, continuar
+  }
+  
+  console.log('✅ Tabla candidates verificada y actualizada');
 
   // 7. TABLA TEST_SESSIONS
   db.exec(`CREATE TABLE IF NOT EXISTS test_sessions (

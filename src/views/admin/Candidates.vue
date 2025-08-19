@@ -124,7 +124,7 @@
                   class="btn-icon text-error"
                   title="Eliminar candidato"
                 >
-                  <i class="icon-trash-2"></i>
+                  <i class="🗑️"></i>
                 </button>
               </td>
             </tr>
@@ -390,89 +390,28 @@ const fetchCandidates = async () => {
     loading.value = true;
     error.value = '';
     
-    // Simular una llamada a la API
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const response = await fetch('/api/candidates');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
     
-    // Datos de ejemplo para simular la respuesta de la API
-    const mockCandidates: Candidate[] = [
-      {
-        id: '1',
-        name: 'Juan Pérez',
-        email: 'juan.perez@ejemplo.com',
-        testId: '1',
-        status: 'pending',
-        invitedAt: '2023-06-15T10:30:00Z',
-        expiresAt: '2023-07-15T23:59:59Z',
-        score: null
-      },
-      {
-        id: '2',
-        name: 'María García',
-        email: 'maria.garcia@ejemplo.com',
-        testId: '2',
-        status: 'in_progress',
-        invitedAt: '2023-06-10T14:15:00Z',
-        startedAt: '2023-06-12T09:30:00Z',
-        expiresAt: '2023-06-25T23:59:59Z',
-        score: null
-      },
-      {
-        id: '3',
-        name: 'Carlos López',
-        email: 'carlos.lopez@ejemplo.com',
-        testId: '1',
-        status: 'completed',
-        invitedAt: '2023-06-01T08:00:00Z',
-        startedAt: '2023-06-02T10:15:00Z',
-        completedAt: '2023-06-02T11:45:00Z',
-        expiresAt: '2023-06-08T23:59:59Z',
-        score: 85,
-        sessionId: 'sess_12345'
-      },
-      {
-        id: '4',
-        name: 'Ana Martínez',
-        email: 'ana.martinez@ejemplo.com',
-        testId: '3',
-        status: 'expired',
-        invitedAt: '2023-05-20T16:45:00Z',
-        expiresAt: '2023-06-05T23:59:59Z',
-        score: null
-      },
-      {
-        id: '5',
-        name: 'Luis Rodríguez',
-        email: 'luis.rodriguez@ejemplo.com',
-        testId: '2',
-        status: 'completed',
-        invitedAt: '2023-06-05T11:20:00Z',
-        startedAt: '2023-06-06T14:30:00Z',
-        completedAt: '2023-06-06T16:15:00Z',
-        expiresAt: '2023-06-12T23:59:59Z',
-        score: 92,
-        sessionId: 'sess_67890'
-      }
-    ];
+    // Mapear los datos de la API al formato esperado por la interfaz
+    candidates.value = data.map(candidate => ({
+      id: candidate.id.toString(),
+      name: candidate.name,
+      email: candidate.email,
+      testId: candidate.test_id ? candidate.test_id.toString() : '',
+      status: candidate.status || 'pending',
+      invitedAt: candidate.created_at,
+      expiresAt: candidate.expires_at,
+      startedAt: candidate.started_at || null,
+      completedAt: candidate.completed_at || null,
+      score: candidate.percentage_score || null,
+      sessionId: candidate.session_id || null
+    }));
     
-    const mockTests: Test[] = [
-      { id: '1', name: 'Prueba de JavaScript', isActive: true, timeLimit: 60 },
-      { id: '2', name: 'Prueba de React', isActive: true, timeLimit: 90 },
-      { id: '3', name: 'Prueba de Node.js', isActive: true, timeLimit: 75 },
-      { id: '4', name: 'Prueba de Vue.js', isActive: false, timeLimit: 60 }
-    ];
-    
-    // Asignar nombres de prueba a los candidatos
-    const candidatesWithTestNames = mockCandidates.map(candidate => {
-      const test = mockTests.find(t => t.id === candidate.testId);
-      return {
-        ...candidate,
-        testName: test ? test.name : 'Prueba no encontrada'
-      };
-    });
-    
-    candidates.value = candidatesWithTestNames;
-    tests.value = mockTests;
-    totalItems.value = mockCandidates.length;
+    totalItems.value = candidates.value.length;
     
   } catch (err) {
     console.error('Error al cargar los candidatos:', err);
@@ -484,12 +423,17 @@ const fetchCandidates = async () => {
 
 const fetchTests = async () => {
   try {
-    // En una implementación real, esto sería una llamada HTTP
-    // const response = await fetch('/api/tests');
-    // const data = await response.json();
-    // tests.value = data;
-    
-    // Para la demo, usamos los datos mockeados en fetchCandidates
+    const response = await fetch('/api/tests');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    tests.value = data.filter(test => test.is_active).map(test => ({
+      id: test.id,
+      name: test.name,
+      isActive: test.is_active,
+      timeLimit: test.time_limit
+    }));
   } catch (err) {
     console.error('Error al cargar las pruebas:', err);
     toast.error('No se pudieron cargar las pruebas disponibles');
@@ -502,11 +446,81 @@ const sendInvitation = async () => {
   try {
     isSendingInvitation.value = true;
     
-    // Simular una llamada a la API
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Convertir testId a número
+    const testId = parseInt(newCandidate.value.testId, 10);
     
-    // Mostrar mensaje de éxito
-    toast.success('Invitación enviada correctamente');
+    if (isNaN(testId)) {
+      throw new Error('ID de prueba no válido');
+    }
+
+    // DEBUGGING: Ver exactamente qué datos se envían
+    console.log('=== DEBUGGING CANDIDATO ===');
+    console.log('testId original:', newCandidate.value.testId);
+    console.log('testId convertido:', testId);
+    const requestBody = {
+      name: newCandidate.value.name,
+      email: newCandidate.value.email,
+      test_id: testId,
+      expires_at: newCandidate.value.expiresAt,
+      custom_message: newCandidate.value.customMessage
+    };
+    console.log('Objeto completo a enviar:', requestBody);
+    console.log('Tipo de test_id:', typeof testId);
+
+    // Crear el candidato
+    const candidateResponse = await fetch('/api/candidates', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: newCandidate.value.name,
+        email: newCandidate.value.email,
+        test_id: testId, // Ahora es un número
+        expires_at: newCandidate.value.expiresAt,
+        custom_message: newCandidate.value.customMessage
+      }),
+    });
+
+    if (!candidateResponse.ok) {
+      const errorData = await candidateResponse.json().catch(() => ({}));
+      console.log('Error response:', { status: candidateResponse.status, errorData });
+      
+      if (errorData.error === 'candidate_exists') {
+        // Si el candidato ya existe, ofrecer opciones
+        const shouldResend = confirm(`${errorData.message}. ¿Deseas reenviar la invitación?`);
+        if (shouldResend && errorData.candidateId) {
+          await resendInvitation(errorData.candidateId);
+          return; // Salir después de reenviar
+        }
+        throw new Error(errorData.message);
+      }
+      
+      throw new Error(errorData.message || `Error al crear candidato: ${candidateResponse.status}`);
+    }
+
+    const candidateData = await candidateResponse.json();
+    
+    // Enviar email de invitación
+    const emailResponse = await fetch('/api/email/send-invitation', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({
+        candidateId: candidateData.id,
+        testId: newCandidate.value.testId,
+        sessionToken: candidateData.sessionToken
+      }),
+    });
+
+    if (!emailResponse.ok) {
+      console.warn('Error al enviar email, pero candidato creado exitosamente');
+      toast.warning('Candidato creado, pero hubo un error al enviar el email');
+    } else {
+      toast.success('Invitación enviada correctamente');
+    }
     
     // Cerrar el modal y reiniciar el formulario
     showInviteModal.value = false;
@@ -523,7 +537,7 @@ const sendInvitation = async () => {
   }
 };
 
-const resendInvitation = async (candidateId: string) => {
+const resendInvitation = async (candidateId: string | number) => {
   try {
     const candidate = candidates.value.find(c => c.id === candidateId);
     if (!candidate) {
@@ -531,11 +545,23 @@ const resendInvitation = async (candidateId: string) => {
       return;
     }
     
-    // Simular una llamada a la API
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Actualizar la fecha de invitación
-    candidate.invitedAt = new Date().toISOString();
+    // Reenviar email de invitación
+    const response = await fetch('/api/email/send-invitation', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({
+        candidateId: candidateId,
+        testId: candidate.testId,
+        sessionToken: candidate.sessionId
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     
     toast.success(`Invitación reenviada a ${candidate.name} (${candidate.email})`);
     
@@ -556,8 +582,18 @@ const deleteCandidate = async () => {
   try {
     isDeleting.value = true;
     
-    // Simular una llamada a la API
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const response = await fetch(`/api/candidates/${candidateToDelete.value.id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Error ${response.status}: No se pudo eliminar el candidato`);
+    }
     
     toast.success('Candidato eliminado correctamente');
     
@@ -565,9 +601,10 @@ const deleteCandidate = async () => {
     showDeleteModal.value = false;
     await fetchCandidates();
     
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('Error al eliminar el candidato:', err);
-    toast.error('Ocurrió un error al eliminar el candidato');
+    const errorMessage = err instanceof Error ? err.message : 'Ocurrió un error al eliminar el candidato';
+    toast.error(errorMessage);
   } finally {
     isDeleting.value = false;
     candidateToDelete.value = null;

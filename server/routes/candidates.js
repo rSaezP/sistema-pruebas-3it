@@ -1,6 +1,7 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../database/init.js';
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -38,22 +39,44 @@ router.get('/', (req, res) => {
 // Create new candidate
 router.post('/', (req, res) => {
   try {
-    const { name, lastname, email, phone, position_applied, experience_level } = req.body;
+    const { 
+      name, 
+      lastname, 
+      email, 
+      phone, 
+      position_applied, 
+      experience_level, 
+      test_id, 
+      expires_at, 
+      custom_message 
+    } = req.body;
 
     if (!name || !email) {
       return res.status(400).json({ error: 'Nombre y email son requeridos' });
     }
 
-    // Check if email already exists
-    const existingCandidate = db.prepare('SELECT id FROM candidates WHERE email = ?').get(email);
+    // Verificar si ya existe un candidato con el mismo email Y misma prueba
+    const existingCandidate = db.prepare(
+      'SELECT id, name, test_id FROM candidates WHERE email = ? AND test_id = ?'
+    ).get(email, test_id);
     
     if (existingCandidate) {
-      return res.status(400).json({ error: 'El email ya está registrado' });
+      const testName = db.prepare('SELECT name FROM tests WHERE id = ?').get(test_id)?.name || 'esta prueba';
+      return res.status(400).json({ 
+        error: 'candidate_exists',
+        message: `El candidato ${existingCandidate.name} ya está registrado para ${testName}`,
+        candidateId: existingCandidate.id
+      });
     }
 
+    // Generate session token for the test
+    const sessionToken = crypto.randomUUID();
+
     const insertQuery = `
-      INSERT INTO candidates (name, lastname, email, phone, position_applied, experience_level, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO candidates (
+        name, lastname, email, phone, position_applied, experience_level, 
+        test_id, expires_at, status, session_token, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const timestamp = new Date().toISOString();
@@ -64,13 +87,21 @@ router.post('/', (req, res) => {
       phone || null,
       position_applied || '',
       experience_level || null,
+      test_id || null,
+      expires_at || null,
+      'pending',
+      sessionToken,
       timestamp,
       timestamp
     ];
 
     const result = db.prepare(insertQuery).run(...values);
 
-    res.json({ id: result.lastInsertRowid, message: 'Candidato creado exitosamente' });
+    res.json({ 
+      id: result.lastInsertRowid, 
+      sessionToken,
+      message: 'Candidato creado exitosamente' 
+    });
   } catch (error) {
     console.error('Error al crear candidato:', error);
     res.status(500).json({ error: 'Error al crear candidato' });
@@ -161,6 +192,56 @@ router.post('/:candidateId/invite', (req, res) => {
   } catch (error) {
     console.error('Error al crear invitación:', error);
     res.status(500).json({ error: 'Error al crear invitación' });
+  }
+});
+
+// Delete candidate
+router.delete('/:id', (req, res) => {
+  try {
+    const candidateId = parseInt(req.params.id);
+    
+    if (isNaN(candidateId)) {
+      return res.status(400).json({ error: 'ID de candidato no válido' });
+    }
+    
+    // Verificar si el candidato existe
+    const candidate = db.prepare('SELECT * FROM candidates WHERE id = ?').get(candidateId);
+    if (!candidate) {
+      return res.status(404).json({ error: 'Candidato no encontrado' });
+    }
+    
+    // Iniciar una transacción para asegurar la integridad de los datos
+    db.prepare('BEGIN TRANSACTION').run();
+    
+    try {
+      // Primero eliminar las sesiones relacionadas
+      db.prepare('DELETE FROM test_sessions WHERE candidate_id = ?').run(candidateId);
+      
+      // Luego eliminar el candidato
+      const result = db.prepare('DELETE FROM candidates WHERE id = ?').run(candidateId);
+      
+      db.prepare('COMMIT').run();
+      
+      if (result.changes === 0) {
+        return res.status(404).json({ error: 'No se pudo eliminar el candidato' });
+      }
+      
+      res.status(200).json({ 
+        message: 'Candidato eliminado correctamente',
+        candidateId: candidateId
+      });
+      
+    } catch (error) {
+      db.prepare('ROLLBACK').run();
+      throw error; // Esto será capturado por el catch externo
+    }
+    
+  } catch (error) {
+    console.error('Error al eliminar candidato:', error);
+    res.status(500).json({ 
+      error: 'Error al eliminar el candidato',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -11,6 +12,7 @@ import reportsRoutes from './routes/reports.js';
 import evaluationRoutes from './routes/evaluation.js';
 import evaluationExtraRoutes from './routes/evaluation-extra.js';
 import emailRoutes from './routes/email.js';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
