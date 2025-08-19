@@ -52,89 +52,9 @@
       "created_at": "2025-08-16T17:46:34.103Z"
     }
   ],
-  "tests": [
-    {
-      "id": 1,
-      "name": "Team Eureka 3it",
-      "description": "Prueba técnica\n diseñada para los postulantes al\n Team Eureka.",
-      "time_limit": 120,
-      "max_attempts": 1,
-      "passing_score": 60,
-      "is_active": true,
-      "created_by": "admin",
-      "created_at": "2025-08-18T20:04:13.646Z",
-      "updated_at": "2025-08-18T20:04:13.647Z"
-    }
-  ],
-  "questions": [
-    {
-      "id": 1,
-      "test_id": 1,
-      "category_id": 1,
-      "family_id": 1,
-      "type": "programming",
-      "title": "Encuentra el mayor número en un arreglo",
-      "description": " Tienes un arreglo (llamado myArray) con 5 elementos (enteros en el rango de 1 a 100). Escribe un programa\n utilizando TLang (para ver la sintaxis haga clic en el botón con la i en la esquina superior derecha) que\n imprima el número más alto del arreglo (Si se repite, solo imprimir una vez).\n El código que llena el arreglo ya está escrito, pero puedes editarlo para probar con otros valores. Con el\n botón de refrescar puedes recuperar el valor original que será utilizado para evaluar la pregunta como\n correcta o incorrecta durante la ejecución.\n IMPORTANTE: Asegúrate de solo imprimir el número y ningún otro texto, ya que esto marcaría la\n pregunta como inválida. Por ejemplo, para el arreglo indicado, el output del programa debe ser:\n 35",
-      "difficulty": "Fácil",
-      "max_score": 10,
-      "order_index": 1,
-      "initial_code": "// Arreglo predefinido para la prueba\nmyArray = [12, 35, 1, 10, 34]\n\n// Escribe tu código aquí para encontrar el mayor número\n// IMPORTANTE: Solo imprime el número, sin texto adicional\nfunction findMax() {\n    // Tu código aquí\n    \n}\n\n// Llamar a la función\nfindMax()\n",
-      "language": "tlang",
-      "database_schema": "",
-      "options": [],
-      "correct_answer": "",
-      "execution_timeout": 5000,
-      "allow_partial_credit": true,
-      "show_expected_output": false,
-      "created_at": "2025-08-18T20:04:13.671Z"
-    }
-  ],
-  "test_cases": [
-    {
-      "id": 1,
-      "question_id": 1,
-      "name": "Caso Ejemplo",
-      "input_data": "[12, 35, 1, 10, 34]",
-      "expected_output": "35",
-      "is_hidden": false,
-      "weight": 25,
-      "timeout_ms": 5000,
-      "created_at": "2025-08-18T20:04:13.691Z"
-    },
-    {
-      "id": 2,
-      "question_id": 1,
-      "name": "Números Repetidos",
-      "input_data": " [50, 50, 25, 40, 30]",
-      "expected_output": "50",
-      "is_hidden": false,
-      "weight": 25,
-      "timeout_ms": 5000,
-      "created_at": "2025-08-18T20:04:13.710Z"
-    },
-    {
-      "id": 3,
-      "question_id": 1,
-      "name": "Mayor al Inicio  ",
-      "input_data": " [100, 45, 67, 23, 89]",
-      "expected_output": "100",
-      "is_hidden": false,
-      "weight": 25,
-      "timeout_ms": 5000,
-      "created_at": "2025-08-18T20:04:13.731Z"
-    },
-    {
-      "id": 4,
-      "question_id": 1,
-      "name": "Caso Edge",
-      "input_data": "[1, 2, 3, 4, 5]",
-      "expected_output": "5",
-      "is_hidden": true,
-      "weight": 25,
-      "timeout_ms": 5000,
-      "created_at": "2025-08-18T20:04:13.752Z"
-    }
-  ],
+  "tests": [],
+  "questions": [],
+  "test_cases": [],
   "candidates": [
     {
       "id": 1,

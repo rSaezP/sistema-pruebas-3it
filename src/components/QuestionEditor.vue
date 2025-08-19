@@ -312,7 +312,10 @@ watch(() => props.modelValue, (newValue) => {
   }
 }, { immediate: true })
 
-// Don't auto-emit to prevent loops - let parent handle v-model updates
+// Watch changes and emit to parent
+watch(questionData, (newData) => {
+  emit('update:modelValue', newData)
+}, { deep: true })
 
 // Lifecycle
 onMounted(() => {

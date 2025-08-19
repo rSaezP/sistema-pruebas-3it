@@ -104,7 +104,12 @@
     <div v-if="currentStep === 2" class="step-content">
       <div class="questions-section">
         <div class="questions-header">
-          <h2>Preguntas de la Prueba</h2>
+          <div class="questions-header-left">
+            <h2>Preguntas de la Prueba</h2>
+            <div v-if="testData.questions.length > 0" class="questions-progress">
+              {{ savedQuestionsCount }} de {{ testData.questions.length }} preguntas guardadas
+            </div>
+          </div>
           <div class="questions-actions">
             <select v-model="newQuestionType" class="question-type-select">
               <option value="">Seleccionar tipo de pregunta</option>
@@ -135,6 +140,12 @@
                 <span class="question-type-badge" :class="question.type">
                   {{ getQuestionTypeLabel(question.type) }}
                 </span>
+                <span 
+                  class="question-status-indicator"
+                  :class="isQuestionSaved(question.tempId) ? 'saved-indicator' : 'unsaved-indicator'"
+                >
+                  {{ isQuestionSaved(question.tempId) ? '✅ Guardada' : '⏳ Sin guardar' }}
+                </span>
               </div>
               <button @click="deleteQuestion(question.tempId)" class="btn-icon delete">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -151,6 +162,19 @@
                 :hideActions="true"
                 @update:modelValue="updateQuestionData(index, $event)"
               />
+              
+              <!-- Save Question Actions -->
+              <div class="question-save-actions">
+                <button 
+                  @click="saveQuestion(index)"
+                  class="btn btn-sm"
+                  :class="isQuestionSaved(question.tempId) ? 'btn-success' : 'btn-primary'"
+                  :disabled="isQuestionSaved(question.tempId)"
+                >
+                  <span v-if="isQuestionSaved(question.tempId)">✓ Pregunta Guardada</span>
+                  <span v-else>✓ Guardar Pregunta</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -167,7 +191,7 @@
           <button 
             @click="nextStep" 
             class="btn btn-primary"
-            :disabled="testData.questions.length === 0"
+            :disabled="testData.questions.length === 0 || !allQuestionsAreSaved"
           >
             Siguiente: Revisar →
           </button>
@@ -256,6 +280,7 @@ const toast = useToast()
 const currentStep = ref(1)
 const loading = ref(false)
 const newQuestionType = ref('')
+const savedQuestionIds = ref([])
 
 // Test data
 const testData = ref({
@@ -265,6 +290,17 @@ const testData = ref({
   passing_score: 60,
   is_active: true,
   questions: [] as any[]
+})
+
+// Computed properties for reactivity
+const isQuestionSaved = (tempId: string) => {
+  return savedQuestionIds.value.includes(tempId)
+}
+
+const savedQuestionsCount = computed(() => savedQuestionIds.value.length)
+
+const allQuestionsAreSaved = computed(() => {
+  return testData.value.questions.every(q => savedQuestionIds.value.includes(q.tempId))
 })
 
 // Methods (not computed to avoid reactive loops)
@@ -277,7 +313,50 @@ const goBack = () => {
   router.push('/admin/tests')
 }
 
+// Question validation and saving functions
+const isQuestionValid = (question: any) => {
+  if (!question.title?.trim()) return false
+  
+  switch (question.type) {
+    case 'programming':
+      return question.test_cases?.length > 0 && question.expected_solution?.trim()
+    case 'multiple_choice':
+      const options = question.options || []
+      return options.length >= 2 && options.some((opt: any) => opt.correct && opt.text?.trim())
+    case 'sql':
+      return !!question.title?.trim()
+    default:
+      return true
+  }
+}
+
+const saveQuestion = (index: number) => {
+  console.log('BOTÓN CLICKEADO - Index:', index)
+  const question = testData.value.questions[index]
+  
+  if (!question) {
+    console.log('ERROR: No se encontró pregunta en index', index)
+    return
+  }
+  
+  console.log('Pregunta encontrada:', question.tempId, question.title)
+  
+  // Simplificar validación al mínimo
+  if (question.title && question.title.trim()) {
+    savedQuestionIds.value.push(question.tempId)
+    toast.success(`Pregunta ${index + 1} guardada`)
+    console.log('Pregunta guardada exitosamente')
+  } else {
+    toast.error('El título es requerido')
+    console.log('Título vacío')
+  }
+}
+
 const nextStep = () => {
+  if (currentStep.value === 2 && !allQuestionsAreSaved.value) {
+    toast.error('Debes guardar todas las preguntas antes de continuar')
+    return
+  }
   if (currentStep.value < 3) {
     currentStep.value++
   }
@@ -324,12 +403,16 @@ const addQuestion = () => {
 
 const updateQuestionData = (index: number, questionData: any) => {
   // Update without triggering reactive loops
-  testData.value.questions[index] = { ...questionData }
+  Object.assign(testData.value.questions[index], questionData)
 }
 
 const deleteQuestion = (tempId: string) => {
   if (confirm('¿Estás seguro de que quieres eliminar esta pregunta?')) {
     testData.value.questions = testData.value.questions.filter(q => q.tempId !== tempId)
+    const index = savedQuestionIds.value.indexOf(tempId)
+    if (index > -1) {
+      savedQuestionIds.value.splice(index, 1)
+    }
     toast.success('Pregunta eliminada')
   }
 }
@@ -1076,5 +1159,48 @@ input:checked + .slider:before {
     gap: var(--spacing-2);
     max-width: none;
   }
+}
+
+/* Question Save Actions */
+.question-save-actions {
+  margin-top: var(--spacing-3);
+  padding-top: var(--spacing-3);
+  border-top: 1px solid #E5E7EB;
+  text-align: right;
+}
+
+.question-save-actions .btn {
+  min-width: 140px;
+}
+
+/* Question Status Indicators */
+.question-status-indicator {
+  padding: 4px var(--spacing-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+}
+
+.saved-indicator {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.unsaved-indicator {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+/* Questions Header Layout */
+.questions-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.questions-progress {
+  font-size: var(--font-size-sm);
+  color: #6B7280;
+  font-weight: 500;
 }
 </style>
