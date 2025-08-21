@@ -102,7 +102,7 @@ router.post('/:token/start', (req, res) => {
     // Update session to started
     const updateQuery = `
       UPDATE test_sessions 
-      SET status = 'in_progress', started_at = ?, browser_info = ?, ip_address = ?, updated_at = ?
+      SET status = 'in_progress', started_at = ?, browser_info = ?, ip_address = ?
       WHERE token = ?
     `;
     
@@ -111,7 +111,6 @@ router.post('/:token/start', (req, res) => {
       timestamp,
       JSON.stringify(browserInfo || {}),
       ipAddress || '',
-      timestamp,
       token
     ];
 
@@ -167,6 +166,32 @@ router.post('/:token/start', (req, res) => {
   } catch (error) {
     console.error('Error al iniciar sesión:', error);
     res.status(500).json({ error: 'Error al iniciar sesión' });
+  }
+});
+
+// Get answers for session
+router.get('/:token/answers', (req, res) => {
+  try {
+    const { token } = req.params;
+
+    // Find session by token
+    const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
+    
+    if (!session) {
+      return res.status(404).json({ error: 'Sesión no encontrada' });
+    }
+
+    // Get existing answers for this session
+    const answersQuery = `
+      SELECT * FROM answers 
+      WHERE session_id = ?
+    `;
+
+    const answers = db.prepare(answersQuery).all(session.id);
+    res.json(answers);
+  } catch (error) {
+    console.error('Error al obtener respuestas:', error);
+    res.status(500).json({ error: 'Error al obtener respuestas' });
   }
 });
 
@@ -244,6 +269,27 @@ router.post('/:token/answer', (req, res) => {
   }
 });
 
+// Log activity route (NUEVA RUTA AGREGADA)
+router.post('/:token/log-activity', (req, res) => {
+  try {
+    const { token } = req.params;
+    const { activity_type, activity_data } = req.body;
+
+    // Find session by token
+    const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
+    
+    if (!session) {
+      return res.status(404).json({ error: 'Sesión no encontrada' });
+    }
+
+    // Log activity (respuesta exitosa simple por ahora)
+    res.json({ message: 'Actividad registrada' });
+  } catch (error) {
+    console.error('Error al registrar actividad:', error);
+    res.status(500).json({ error: 'Error al registrar actividad' });
+  }
+});
+
 // Finish test session
 router.post('/:token/finish', (req, res) => {
   try {
@@ -269,11 +315,11 @@ router.post('/:token/finish', (req, res) => {
     // Update session status
     const updateQuery = `
       UPDATE test_sessions 
-      SET status = 'completed', completed_at = ?, time_spent_seconds = ?, updated_at = ?
+      SET status = 'completed', finished_at = ?, time_spent_seconds = ?
       WHERE token = ?
     `;
     
-    const values = [timestamp, timeSpentSeconds, timestamp, token];
+    const values = [timestamp, timeSpentSeconds, token];
 
     db.prepare(updateQuery).run(...values);
 

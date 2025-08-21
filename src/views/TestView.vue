@@ -68,8 +68,8 @@
                 <CodeEditor
                   ref="codeEditorRef"
                   :language="currentQuestion.language || 'javascript'"
-                  :value="answers[currentQuestion.id] || currentQuestion.initial_code || ''"
-                  @update:value="updateAnswer"
+                  :modelValue="answers[currentQuestion.id] || currentQuestion.initial_code || ''"
+                  @update:modelValue="updateAnswer"
                   :height="400"
                 />
               </div>
@@ -296,12 +296,23 @@ const startSession = async () => {
 
 const loadExistingAnswers = async () => {
   try {
-    const response = await fetch(`/api/sessions/${session.value.id}/answers`);
+    console.log('=== CARGANDO RESPUESTAS EXISTENTES ===');
+    console.log('Token:', props.token);
+    
+    const response = await fetch(`/api/sessions/${props.token}/answers`);
+    console.log('Load response status:', response.status);
+    
     if (response.ok) {
       const existingAnswers = await response.json();
+      console.log('Respuestas encontradas:', existingAnswers);
+      
       existingAnswers.forEach((answer: any) => {
         answers.value[answer.question_id] = answer.answer_text;
+        console.log(`Cargada respuesta para pregunta ${answer.question_id}:`, answer.answer_text);
       });
+    } else {
+      const errorData = await response.text();
+      console.error('Error loading response:', errorData);
     }
   } catch (error) {
     console.error('Error loading existing answers:', error);
@@ -315,16 +326,30 @@ const updateAnswer = async (value: string) => {
 
 const saveAnswer = async (answerText: string) => {
   try {
-    await fetch(`/api/sessions/${session.value.id}/answers`, {
+    console.log('=== GUARDANDO RESPUESTA ===');
+    console.log('Token:', props.token);
+    console.log('Question ID:', currentQuestion.value.id);
+    console.log('Answer:', answerText);
+    
+    const response = await fetch(`/api/sessions/${props.token}/answer`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        question_id: currentQuestion.value.id,
-        answer_text: answerText
+        questionId: currentQuestion.value.id,
+        answer: answerText
       })
     });
+    
+    console.log('Response status:', response.status);
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('Error response:', errorData);
+    } else {
+      const result = await response.json();
+      console.log('Guardado exitoso:', result);
+    }
   } catch (error) {
     console.error('Error saving answer:', error);
   }
@@ -499,12 +524,12 @@ const getQuestionOptions = (question: any) => {
 const handleVisibilityChange = () => {
   if (document.hidden) {
     // Log tab switch
-    fetch(`/api/sessions/${session.value?.id}/log-activity`, {
+    fetch(`/api/sessions/${props.token}/log-activity`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'tab_switch',
-        timestamp: new Date().toISOString()
+        activity_type: 'tab_switch',
+        activity_data: { timestamp: new Date().toISOString() }
       })
     }).catch(() => {});
   }

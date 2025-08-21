@@ -88,7 +88,7 @@ router.post('/:token/start', (req, res) => {
     const { token } = req.params;
     const { browserInfo, ipAddress } = req.body;
 
-    // Find session by token (CORREGIDO)
+    // Find session by token
     const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
     
     if (!session) {
@@ -99,19 +99,19 @@ router.post('/:token/start', (req, res) => {
       return res.status(400).json({ error: 'La sesión ya ha sido iniciada' });
     }
 
-    // Update session to started
+    // Update session to started - CORREGIDO
     const updateQuery = `
       UPDATE test_sessions 
-      SET status = 'in_progress', started_at = ?, browser_info = ?, ip_address = ?, updated_at = ?
+      SET status = 'in_progress', started_at = ?, browser_info = ?, ip_address = ?
       WHERE token = ?
     `;
-    
+
     const timestamp = new Date().toISOString();
+
     const values = [
       timestamp,
       JSON.stringify(browserInfo || {}),
       ipAddress || '',
-      timestamp,
       token
     ];
 
@@ -176,7 +176,7 @@ router.post('/:token/answer', (req, res) => {
     const { token } = req.params;
     const { questionId, answer, timeSpent } = req.body;
 
-    // Find session by token (CORREGIDO)
+    // Find session by token
     const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
     
     if (!session || session.status !== 'in_progress') {
@@ -220,7 +220,7 @@ router.post('/:token/answer', (req, res) => {
     } else {
       // Create new answer
       const insertQuery = `
-        INSERT INTO answers (session_id, question_id, answer_text, time_spent_seconds, max_score, attempts_count, created_at, last_modified_at)
+        INSERT INTO answers (session_id, question_id, answer_text, time_spent_seconds, max_score, attempts_count, submitted_at, last_modified_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
@@ -244,12 +244,38 @@ router.post('/:token/answer', (req, res) => {
   }
 });
 
-// Finish test session
+// Get answers for session
+router.get('/:token/answers', (req, res) => {
+  try {
+    const { token } = req.params;
+
+    // Find session by token
+    const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
+    
+    if (!session) {
+      return res.status(404).json({ error: 'Sesión no encontrada' });
+    }
+
+    // Get existing answers for this session
+    const answersQuery = `
+      SELECT * FROM answers 
+      WHERE session_id = ?
+    `;
+
+    const answers = db.prepare(answersQuery).all(session.id);
+    res.json(answers);
+  } catch (error) {
+    console.error('Error al obtener respuestas:', error);
+    res.status(500).json({ error: 'Error al obtener respuestas' });
+  }
+});
+
+// Finish test session - CORREGIDO
 router.post('/:token/finish', (req, res) => {
   try {
     const { token } = req.params;
 
-    // Find session by token (CORREGIDO)
+    // Find session by token
     const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
     
     if (!session) {
@@ -266,14 +292,14 @@ router.post('/:token/finish', (req, res) => {
     const timeSpentSeconds = Math.floor((currentTime - startTime) / 1000);
     const timestamp = new Date().toISOString();
 
-    // Update session status
+    // Update session status - CORREGIDO
     const updateQuery = `
       UPDATE test_sessions 
-      SET status = 'completed', completed_at = ?, time_spent_seconds = ?, updated_at = ?
+      SET status = 'completed', finished_at = ?, time_spent_seconds = ?
       WHERE token = ?
     `;
     
-    const values = [timestamp, timeSpentSeconds, timestamp, token];
+    const values = [timestamp, timeSpentSeconds, token];
 
     db.prepare(updateQuery).run(...values);
 

@@ -66,10 +66,11 @@
                 </div>
                 
                 <CodeEditor
+                  :key="`editor-${currentQuestion.id}`"
                   ref="codeEditorRef"
                   :language="currentQuestion.language || 'javascript'"
-                  :value="answers[currentQuestion.id] || currentQuestion.initial_code || ''"
-                  @update:value="updateAnswer"
+                  v-model="answers[currentQuestion.id]"
+                  @update:modelValue="updateAnswer" 
                   :height="400"
                 />
               </div>
@@ -89,10 +90,11 @@
               
               <div class="sql-editor">
                 <CodeEditor
+                  :key="`sql-editor-${currentQuestion.id}`"
                   ref="sqlEditorRef"
                   language="sql"
-                  :value="answers[currentQuestion.id] || ''"
-                  @update:value="updateAnswer"
+                  v-model="answers[currentQuestion.id]"
+                  @update:modelValue="updateAnswer"
                   :height="200"
                 />
               </div>
@@ -242,9 +244,21 @@ const sqlEditorRef = ref<any>(null);
 // Computed
 const currentQuestion = computed(() => questions.value[currentQuestionIndex.value] || {});
 const canFinishTest = computed(() => {
-  // Verificar que al menos el 50% de las preguntas estén respondidas
-  const answeredCount = Object.values(answers.value).filter(answer => answer && answer.trim() !== '').length;
-  return answeredCount >= Math.ceil(questions.value.length * 0.5);
+  console.log('=== EVALUANDO canFinishTest ===');
+  console.log('Answers object:', answers.value);
+  console.log('Total questions:', questions.value.length);
+  
+  const answeredCount = Object.values(answers.value).filter(answer => {
+    const isValid = answer && answer.trim() !== '';
+    return isValid;
+  }).length;
+  
+  const required = Math.ceil(questions.value.length * 0.5);
+  const canFinish = answeredCount >= required;
+  
+  console.log(`Respondidas: ${answeredCount}, Requeridas: ${required}, Puede finalizar: ${canFinish}`);
+  
+  return canFinish;
 });
 
 // Methods
@@ -281,36 +295,53 @@ const loadTestSession = async () => {
 
 const startSession = async () => {
   try {
-    await apiClient.post(`/sessions/${session.value.id}/start`);
+    await apiClient.post(`/sessions/${props.token}/start`);
   } catch (error) {
     console.error('Error starting session:', error);
   }
 };
 
 const loadExistingAnswers = async () => {
+  console.log('=== CARGANDO RESPUESTAS EXISTENTES ===');
   try {
-    const existingAnswers = await apiClient.get(`/sessions/${session.value.id}/answers`);
+    const existingAnswers = await apiClient.get(`/sessions/${props.token}/answers`);
+    console.log('Respuestas del servidor:', existingAnswers);
+    
+    // Limpiar answers object primero
+    answers.value = {};
+    
     existingAnswers.forEach((answer: any) => {
+      console.log(`Cargando: Question ${answer.question_id} = "${answer.answer_text}"`);
       answers.value[answer.question_id] = answer.answer_text;
     });
+    
+    console.log('Estado final answers:', answers.value);
   } catch (error) {
-    console.error('Error loading existing answers:', error);
+    console.error('Error cargando respuestas:', error);
   }
 };
 
 const updateAnswer = async (value: string) => {
+  console.log('=== updateAnswer LLAMADO ===');
+  console.log('Valor recibido:', value);
+  console.log('Question ID:', currentQuestion.value.id);
+  
   answers.value[currentQuestion.value.id] = value;
   await saveAnswer(value);
 };
 
 const saveAnswer = async (answerText: string) => {
+  console.log('=== saveAnswer LLAMADO ===');
+  console.log('Enviando al servidor:', answerText);
+  
   try {
-    await apiClient.post(`/sessions/${session.value.id}/answers`, {
-      question_id: currentQuestion.value.id,
-      answer_text: answerText
+    await apiClient.post(`/sessions/${props.token}/answer`, {
+      questionId: currentQuestion.value.id,
+      answer: answerText
     });
+    console.log('✅ Guardado exitoso');
   } catch (error) {
-    console.error('Error saving answer:', error);
+    console.error('❌ Error guardando:', error);
   }
 };
 
@@ -391,7 +422,11 @@ const resetOutputs = () => {
 };
 
 const finishTest = () => {
+  console.log('finishTest llamado');
+  console.log('canFinishTest:', canFinishTest.value);
+  console.log('answers:', answers.value);
   showFinishModal.value = true;
+  console.log('showFinishModal:', showFinishModal.value);
 };
 
 const confirmFinishTest = async () => {
@@ -399,7 +434,7 @@ const confirmFinishTest = async () => {
     loading.value = true;
     
     // Finalizar sesión
-    await apiClient.post(`/sessions/${session.value.id}/finish`);
+    await apiClient.post(`/sessions/${props.token}/finish`);
     
     toast.success('Prueba finalizada correctamente');
     
@@ -463,13 +498,13 @@ const getQuestionOptions = (question: any) => {
 
 // Prevent cheating behaviors
 const handleVisibilityChange = () => {
-  if (document.hidden) {
-    // Log tab switch
-    apiClient.post(`/sessions/${session.value?.id}/log-activity`, {
-      action: 'tab_switch',
-      timestamp: new Date().toISOString()
-    }).catch(() => {});
-  }
+  // Comentado temporalmente para debugging
+  // if (document.hidden) {
+  //   apiClient.post(`/sessions/${props.token}/log-activity`, {
+  //     action: 'tab_switch',
+  //     timestamp: new Date().toISOString()
+  //   }).catch(() => {});
+  // }
 };
 
 const handleContextMenu = (e: Event) => {
@@ -497,7 +532,7 @@ onMounted(async () => {
   
   // Prevent copy/paste in code editors
   nextTick(() => {
-    if (codeEditorRef.value) {
+    if (codeEditorRef.value && typeof codeEditorRef.value.preventCopyPaste === 'function') {
       codeEditorRef.value.preventCopyPaste();
     }
   });
