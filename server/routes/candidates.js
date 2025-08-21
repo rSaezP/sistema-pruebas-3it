@@ -97,6 +97,50 @@ router.post('/', (req, res) => {
 
     const result = db.prepare(insertQuery).run(...values);
 
+    console.log('=== DEBUG GENERAL ===');
+    console.log('test_id recibido:', test_id);
+    console.log('test_id type:', typeof test_id);
+    console.log('test_id truthy:', !!test_id);
+
+    // Si tiene test_id, crear también la sesión correspondiente
+    if (test_id) {
+      console.log('=== DEBUG CREACIÓN SESIÓN ===');
+      console.log('test_id:', test_id);
+      
+      const test = db.prepare('SELECT * FROM tests WHERE id = ?').get(test_id);
+      console.log('test encontrado:', test);
+      
+      if (test) {
+        const insertSessionQuery = `
+          INSERT INTO test_sessions (candidate_id, test_id, token, time_limit_minutes, status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `;
+        
+        const sessionValues = [
+          result.lastInsertRowid,
+          test_id,
+          sessionToken,
+          test.time_limit,
+          'pending',
+          timestamp,
+          timestamp
+        ];
+        
+        console.log('valores para sesión:', sessionValues);
+        
+        try {
+          const sessionResult = db.prepare(insertSessionQuery).run(...sessionValues);
+          console.log('sesión creada con ID:', sessionResult.lastInsertRowid);
+        } catch (error) {
+          console.error('ERROR creando sesión:', error);
+        }
+      } else {
+        console.log('NO se encontró el test con ID:', test_id);
+      }
+    } else {
+      console.log('NO hay test_id para crear sesión');
+    }
+
     res.json({ 
       id: result.lastInsertRowid, 
       sessionToken,

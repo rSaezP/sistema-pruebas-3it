@@ -35,7 +35,7 @@ router.get('/token/:token', (req, res) => {
       FROM test_sessions s
       LEFT JOIN tests t ON s.test_id = t.id
       LEFT JOIN candidates c ON s.candidate_id = c.id
-      WHERE s.invitation_token = ?
+      WHERE s.token = ?
     `;
 
     const session = db.prepare(sessionQuery).get(token);
@@ -89,7 +89,7 @@ router.post('/:token/start', (req, res) => {
     const { browserInfo, ipAddress } = req.body;
 
     // Find session by invitation_token (CORREGIDO)
-    const session = db.prepare('SELECT * FROM test_sessions WHERE invitation_token = ?').get(token);
+    const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
     
     if (!session) {
       return res.status(404).json({ error: 'Sesión no encontrada' });
@@ -103,7 +103,7 @@ router.post('/:token/start', (req, res) => {
     const updateQuery = `
       UPDATE test_sessions 
       SET status = 'in_progress', started_at = ?, browser_info = ?, ip_address = ?, updated_at = ?
-      WHERE invitation_token = ?
+      WHERE token = ?
     `;
     
     const timestamp = new Date().toISOString();
@@ -177,7 +177,7 @@ router.post('/:token/answer', (req, res) => {
     const { questionId, answer, timeSpent } = req.body;
 
     // Find session by invitation_token (CORREGIDO)
-    const session = db.prepare('SELECT * FROM test_sessions WHERE invitation_token = ?').get(token);
+    const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
     
     if (!session || session.status !== 'in_progress') {
       return res.status(400).json({ error: 'Sesión inválida o no activa' });
@@ -250,7 +250,7 @@ router.post('/:token/finish', (req, res) => {
     const { token } = req.params;
 
     // Find session by invitation_token (CORREGIDO)
-    const session = db.prepare('SELECT * FROM test_sessions WHERE invitation_token = ?').get(token);
+    const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
     
     if (!session) {
       return res.status(404).json({ error: 'Sesión no encontrada' });
@@ -270,7 +270,7 @@ router.post('/:token/finish', (req, res) => {
     const updateQuery = `
       UPDATE test_sessions 
       SET status = 'completed', completed_at = ?, time_spent_seconds = ?, updated_at = ?
-      WHERE invitation_token = ?
+      WHERE token = ?
     `;
     
     const values = [timestamp, timeSpentSeconds, timestamp, token];

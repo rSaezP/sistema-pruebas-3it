@@ -97,6 +97,34 @@ router.post('/', (req, res) => {
 
     const result = db.prepare(insertQuery).run(...values);
 
+    // Si tiene test_id, crear también la sesión correspondiente
+    if (test_id) {
+      const test = db.prepare('SELECT * FROM tests WHERE id = ?').get(test_id);
+      
+      if (test) {
+        const insertSessionQuery = `
+          INSERT INTO test_sessions (candidate_id, test_id, token, time_limit_minutes, status, created_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `;
+        
+        const sessionValues = [
+          result.lastInsertRowid,
+          test_id,
+          sessionToken,
+          test.time_limit || 60,
+          'pending',
+          timestamp
+        ];
+        
+        try {
+          db.prepare(insertSessionQuery).run(...sessionValues);
+          console.log('Sesión creada exitosamente para candidato:', result.lastInsertRowid);
+        } catch (error) {
+          console.error('Error creando sesión:', error);
+        }
+      }
+    }
+
     res.json({ 
       id: result.lastInsertRowid, 
       sessionToken,
@@ -151,23 +179,16 @@ router.post('/:candidateId/invite', (req, res) => {
     const timestamp = new Date().toISOString();
     
     const insertSessionQuery = `
-      INSERT INTO test_sessions (candidate_id, test_id, token, time_limit_minutes, status, started_at, completed_at, percentage_score, time_spent_seconds, browser_info, ip_address, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO test_sessions (candidate_id, test_id, token, time_limit_minutes, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
     `;
     
     const sessionValues = [
       candidateId,
       parseInt(testId),
       token,
-      test.time_limit,
+      test.time_limit || 60,
       'pending',
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      timestamp,
       timestamp
     ];
 
