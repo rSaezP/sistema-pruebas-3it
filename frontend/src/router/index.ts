@@ -14,6 +14,7 @@ const ReportsView = () => import('@/views/admin/Reports.vue');
 
 // Public Views
 const TestView = () => import('@/views/TestView.vue');
+const TestCompletedView = () => import('@/views/TestCompleted.vue');
 
 const routes: Array<RouteRecordRaw> = [
   {
@@ -72,6 +73,12 @@ const routes: Array<RouteRecordRaw> = [
         path: '',
         name: 'test-view',
         component: TestView,
+        props: true
+      },
+      {
+        path: 'completed',
+        name: 'test-completed',
+        component: TestCompletedView,
         props: true
       }
     ]
