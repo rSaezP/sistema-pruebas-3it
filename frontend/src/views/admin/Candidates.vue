@@ -429,7 +429,7 @@ const fetchTests = async () => {
     }
     const data = await response.json();
     tests.value = data.filter(test => test.is_active).map(test => ({
-      id: test.id,
+      id: test.id.toString(),
       name: test.name,
       isActive: test.is_active,
       timeLimit: test.time_limit
