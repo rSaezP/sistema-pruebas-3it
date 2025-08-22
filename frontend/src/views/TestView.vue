@@ -59,10 +59,6 @@
               <div class="code-section">
                 <div class="code-header">
                   <span class="language-badge">{{ currentQuestion.language || 'javascript' }}</span>
-                  <button @click="runCode" class="btn btn-secondary btn-sm" :disabled="isRunning">
-                    <span v-if="!isRunning">▶ Ejecutar</span>
-                    <span v-else>⏳ Ejecutando...</span>
-                  </button>
                 </div>
                 
                 <CodeEditor
@@ -75,10 +71,6 @@
                 />
               </div>
               
-              <div v-if="codeOutput" class="code-output">
-                <h4>Resultado:</h4>
-                <pre class="output-content" :class="{ 'error': codeOutput.error }">{{ codeOutput.output }}</pre>
-              </div>
             </div>
 
             <!-- Pregunta SQL -->
@@ -99,21 +91,7 @@
                 />
               </div>
               
-              <button @click="validateSQL" class="btn btn-secondary btn-sm" :disabled="isValidating">
-                <span v-if="!isValidating">🔍 Validar SQL</span>
-                <span v-else>⏳ Validando...</span>
-              </button>
               
-              <div v-if="sqlResult" class="sql-result">
-                <h4>Resultado:</h4>
-                <div v-if="sqlResult.error" class="error">{{ sqlResult.error }}</div>
-                <div v-else>
-                  <p class="success">✅ Consulta válida</p>
-                  <div v-if="sqlResult.rows" class="result-table">
-                    <!-- Mostrar resultados de la consulta -->
-                  </div>
-                </div>
-              </div>
             </div>
 
             <!-- Pregunta de selección múltiple -->
@@ -231,10 +209,6 @@ const answers = ref<Record<number, string>>({});
 const currentQuestionIndex = ref(0);
 const timeRemaining = ref(3600);
 const showFinishModal = ref(false);
-const isRunning = ref(false);
-const isValidating = ref(false);
-const codeOutput = ref<any>(null);
-const sqlResult = ref<any>(null);
 
 // Refs
 const timerRef = ref<any>(null);
@@ -345,57 +319,7 @@ const saveAnswer = async (answerText: string) => {
   }
 };
 
-const runCode = async () => {
-  if (!answers.value[currentQuestion.value.id]) {
-    toast.error('Escribe algo de código primero');
-    return;
-  }
-  
-  isRunning.value = true;
-  codeOutput.value = null;
-  
-  try {
-    const result = await apiClient.post('/evaluation/run-code', {
-      code: answers.value[currentQuestion.value.id],
-      language: currentQuestion.value.language || 'javascript',
-      question_id: currentQuestion.value.id
-    });
-    codeOutput.value = result;
-    
-  } catch (error: any) {
-    codeOutput.value = {
-      error: true,
-      output: 'Error al ejecutar el código: ' + error.message
-    };
-  } finally {
-    isRunning.value = false;
-  }
-};
 
-const validateSQL = async () => {
-  if (!answers.value[currentQuestion.value.id]) {
-    toast.error('Escribe una consulta SQL primero');
-    return;
-  }
-  
-  isValidating.value = true;
-  sqlResult.value = null;
-  
-  try {
-    const result = await apiClient.post('/evaluation/validate-sql', {
-      sql: answers.value[currentQuestion.value.id],
-      question_id: currentQuestion.value.id
-    });
-    sqlResult.value = result;
-    
-  } catch (error: any) {
-    sqlResult.value = {
-      error: 'Error al validar SQL: ' + error.message
-    };
-  } finally {
-    isValidating.value = false;
-  }
-};
 
 const previousQuestion = () => {
   if (currentQuestionIndex.value > 0) {
@@ -417,8 +341,6 @@ const goToQuestion = (index: number) => {
 };
 
 const resetOutputs = () => {
-  codeOutput.value = null;
-  sqlResult.value = null;
 };
 
 const finishTest = () => {
