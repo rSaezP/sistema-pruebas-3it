@@ -9,14 +9,19 @@
         :style="{ height: editorHeight }"
         @input="handleInput"
         @keydown="handleKeydown"
+        @contextmenu="handleContextMenu"
+        @copy="handleCopy"
+        @paste="handlePaste"
+        @cut="handleCut"
         spellcheck="false"
+        autocomplete="off"
       ></textarea>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 
 const props = defineProps({
   modelValue: {
@@ -55,7 +60,28 @@ const handleInput = (event: Event) => {
 };
 
 const handleKeydown = (event: KeyboardEvent) => {
-  // Añadir soporte para Tab
+  // NUEVO: Prevenir copiar/pegar y atajos relacionados
+  if (
+    (event.ctrlKey || event.metaKey) && 
+    (event.key === 'c' || event.key === 'v' || event.key === 'x' || event.key === 'a')
+  ) {
+    event.preventDefault();
+    console.log('Operación de clipboard bloqueada');
+    return false;
+  }
+
+  // NUEVO: Prevenir F12 y herramientas de desarrollador
+  if (
+    event.key === 'F12' || 
+    (event.ctrlKey && event.shiftKey && event.key === 'I') ||
+    (event.ctrlKey && event.shiftKey && event.key === 'C') ||
+    (event.ctrlKey && event.key === 'u')
+  ) {
+    event.preventDefault();
+    return false;
+  }
+
+  // EXISTENTE: Añadir soporte para Tab
   if (event.key === 'Tab') {
     event.preventDefault();
     const textarea = event.target as HTMLTextAreaElement;
@@ -75,6 +101,43 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 };
 
+// NUEVAS FUNCIONES DE SEGURIDAD
+const handleContextMenu = (event: Event) => {
+  event.preventDefault();
+  return false;
+};
+
+const handleCopy = (event: ClipboardEvent) => {
+  event.preventDefault();
+  console.log('Copia bloqueada');
+  return false;
+};
+
+const handlePaste = (event: ClipboardEvent) => {
+  event.preventDefault();
+  console.log('Pegado bloqueado');
+  return false;
+};
+
+const handleCut = (event: ClipboardEvent) => {
+  event.preventDefault();
+  console.log('Corte bloqueado');
+  return false;
+};
+
+onMounted(() => {
+  console.log('Editor seguro activado - operaciones de clipboard deshabilitadas');
+});
+
+// NUEVO: Función expuesta para compatibilidad con TestView
+const preventCopyPaste = () => {
+  console.log('Prevención de copia/pegado ya está activa');
+};
+
+defineExpose({
+  preventCopyPaste
+});
+
 // Language is now controlled by parent component
 </script>
 
@@ -86,8 +149,9 @@ const handleKeydown = (event: KeyboardEvent) => {
   border-radius: 6px;
   overflow: hidden;
   background-color: #ffffff;
+  /* NUEVO: Prevenir selección del contenedor */
+  user-select: none;
 }
-
 
 .editor-wrapper {
   position: relative;
@@ -111,6 +175,8 @@ const handleKeydown = (event: KeyboardEvent) => {
   white-space: pre;
   overflow-wrap: normal;
   overflow-x: auto;
+  /* NUEVO: Permitir selección solo en textarea para edición */
+  user-select: text;
 }
 
 .code-editor:focus {
@@ -120,5 +186,20 @@ const handleKeydown = (event: KeyboardEvent) => {
 .code-editor::placeholder {
   color: #999;
   font-style: italic;
+}
+
+/* NUEVO: Indicador visual de editor seguro */
+.code-editor-container::before {
+  content: "🔒 Editor Seguro";
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  font-size: 10px;
+  color: #666;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 2px 6px;
+  border-radius: 3px;
+  z-index: 10;
+  pointer-events: none;
 }
 </style>

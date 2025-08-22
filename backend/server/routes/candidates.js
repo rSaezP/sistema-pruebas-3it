@@ -235,10 +235,18 @@ router.delete('/:id', (req, res) => {
     db.prepare('BEGIN TRANSACTION').run();
     
     try {
-      // Primero eliminar las sesiones relacionadas
+      // 1. Primero obtener todas las sesiones del candidato
+      const sessions = db.prepare('SELECT id FROM test_sessions WHERE candidate_id = ?').all(candidateId);
+      
+      // 2. Eliminar todas las respuestas de esas sesiones
+      for (const session of sessions) {
+        db.prepare('DELETE FROM answers WHERE session_id = ?').run(session.id);
+      }
+      
+      // 3. Luego eliminar las sesiones
       db.prepare('DELETE FROM test_sessions WHERE candidate_id = ?').run(candidateId);
       
-      // Luego eliminar el candidato
+      // 4. Finalmente eliminar el candidato
       const result = db.prepare('DELETE FROM candidates WHERE id = ?').run(candidateId);
       
       db.prepare('COMMIT').run();

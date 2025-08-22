@@ -3,7 +3,8 @@
     <div class="timer-display" :class="{ 'time-warning': timeLeft <= 300 && timeLeft > 60, 'time-critical': timeLeft <= 60 }">
       {{ formattedTime }}
     </div>
-    <div class="timer-controls">
+    <!-- Solo mostrar controles si showControls es true -->
+    <div v-if="showControls" class="timer-controls">
       <button 
         v-if="!isRunning" 
         @click="startTimer" 
@@ -119,7 +120,11 @@ const resetTimer = () => {
 };
 
 const timerComplete = () => {
-  pauseTimer();
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  isRunning.value = false;
   showComplete.value = true;
   emit('time-up');
 };
