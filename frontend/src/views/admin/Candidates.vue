@@ -107,7 +107,7 @@
                   class="btn-icon"
                   title="Reenviar invitación"
                 >
-                  <i class="icon-send"></i>
+                  📧
                 </button>
                 
                 <router-link 
@@ -116,15 +116,26 @@
                   class="btn-icon"
                   title="Ver resultados"
                 >
-                  <i class="icon-file-text"></i>
+                  📊
                 </router-link>
+                
+                <button 
+                  v-if="candidate.status === 'completed'"
+                  @click="downloadReport(candidate.id, candidate.name)"
+                  class="btn-icon"
+                  title="Descargar reporte PDF"
+                  :disabled="downloadingReports.has(candidate.id)"
+                >
+                  <span v-if="downloadingReports.has(candidate.id)" class="spinner-sm"></span>
+                  <span v-else>📄</span>
+                </button>
                 
                 <button 
                   @click="confirmDelete(candidate)"
                   class="btn-icon text-error"
                   title="Eliminar candidato"
                 >
-                  <i class="🗑️"></i>
+                  🗑️
                 </button>
               </td>
             </tr>
@@ -299,6 +310,7 @@ interface Candidate {
   completedAt?: string | null;
   score?: number | null;
   sessionId?: string;
+  sessionToken?: string;
 }
 
 interface Test {
@@ -335,6 +347,9 @@ const newCandidate = ref({
 const showDeleteModal = ref(false);
 const isDeleting = ref(false);
 const candidateToDelete = ref<Candidate | null>(null);
+
+// Estado para la descarga de reportes PDF
+const downloadingReports = ref(new Set<string>());
 
 // Inicializar el toast
 const toast = useToast();
@@ -408,7 +423,8 @@ const fetchCandidates = async () => {
       startedAt: candidate.started_at || null,
       completedAt: candidate.completed_at || null,
       score: candidate.percentage_score || null,
-      sessionId: candidate.session_id || null
+      sessionId: candidate.session_id || null,
+      sessionToken: candidate.session_token || null
     }));
     
     totalItems.value = candidates.value.length;
@@ -555,7 +571,7 @@ const resendInvitation = async (candidateId: string | number) => {
       body: JSON.stringify({
         candidateId: candidateId,
         testId: candidate.testId,
-        sessionToken: candidate.sessionId
+        sessionToken: candidate.sessionToken
       }),
     });
 
@@ -674,6 +690,59 @@ const isExpiringSoon = (expiresAt: string) => {
   const diffInDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   
   return diffInDays <= 2 && diffInDays >= 0; // Expira en 2 días o menos
+};
+
+const downloadReport = async (candidateId: string, candidateName: string) => {
+  try {
+    // Agregar el candidato al set de descargas en progreso
+    downloadingReports.value.add(candidateId);
+    
+    // Realizar la petición al endpoint PDF
+    const response = await fetch(`/api/candidates/${candidateId}/reports/pdf`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Error ${response.status}: No se pudo generar el reporte PDF`);
+    }
+    
+    // Obtener el blob del PDF
+    const blob = await response.blob();
+    
+    // Crear un enlace temporal para descargar el archivo
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    
+    // Formato del nombre del archivo: "Reporte_NombreCandidato_YYYYMMDD.pdf"
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0].replace(/-/g, '');
+    const sanitizedName = candidateName.replace(/[^a-zA-Z0-9]/g, '_');
+    link.download = `Reporte_${sanitizedName}_${dateStr}.pdf`;
+    
+    // Simular clic para descargar
+    document.body.appendChild(link);
+    link.click();
+    
+    // Limpiar
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    toast.success(`Reporte PDF descargado correctamente para ${candidateName}`);
+    
+  } catch (err: unknown) {
+    console.error('Error al descargar el reporte PDF:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Ocurrió un error al descargar el reporte PDF';
+    toast.error(errorMessage);
+  } finally {
+    // Remover el candidato del set de descargas en progreso
+    downloadingReports.value.delete(candidateId);
+  }
 };
 
 // Ciclo de vida
@@ -834,6 +903,21 @@ tr:hover {
 
 .btn-icon.text-error:hover {
   color: #ef4444;
+}
+
+.btn-icon:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinner-sm {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid var(--azul-electrico);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
 
 .pagination {
