@@ -680,6 +680,11 @@ const isExpiringSoon = (expiresAt: string) => {
 onMounted(() => {
   fetchCandidates();
   fetchTests();
+  
+  // Auto-refresh cada 30 segundos para ver cambios de estado
+  setInterval(() => {
+    fetchCandidates();
+  }, 30000);
 });
 </script>
 

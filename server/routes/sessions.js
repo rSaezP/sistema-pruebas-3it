@@ -323,6 +323,17 @@ router.post('/:token/finish', (req, res) => {
 
     db.prepare(updateQuery).run(...values);
 
+    // Actualizar también el estado del candidato
+    const updateCandidateQuery = `
+      UPDATE candidates 
+      SET status = 'completed', updated_at = ?
+      WHERE id = (SELECT candidate_id FROM test_sessions WHERE token = ?)
+    `;
+
+    console.log('🔄 Intentando actualizar candidato para token:', token);
+    const candidateUpdateResult = db.prepare(updateCandidateQuery).run(timestamp, token);
+    console.log('✅ Candidato actualizado. Filas afectadas:', candidateUpdateResult.changes);
+
     res.json({ message: 'Prueba finalizada exitosamente', timeSpent: timeSpentSeconds });
   } catch (error) {
     console.error('Error al finalizar sesión:', error);

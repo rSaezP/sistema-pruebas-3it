@@ -456,7 +456,7 @@ const confirmFinishTest = async () => {
     loading.value = true;
     
     // Finalizar sesión
-    await fetch(`/api/sessions/${session.value.id}/finish`, {
+    await fetch(`/api/sessions/${props.token}/finish`, {
       method: 'POST'
     });
     
