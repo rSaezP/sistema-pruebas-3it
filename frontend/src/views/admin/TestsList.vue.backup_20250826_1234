@@ -186,7 +186,7 @@ const editTest = (testId: number) => {
 
 const duplicateTest = async (testId: number) => {
   try {
-    const response = await fetch(`http://localhost:4000/api/tests/${testId}`)
+    const response = await fetch(`http://localhost:3001/api/tests/${testId}`)
     if (response.ok) {
       const testData = await response.json()
       // Create duplicate with modified name
@@ -196,7 +196,7 @@ const duplicateTest = async (testId: number) => {
         id: undefined
       }
       
-      const createResponse = await fetch('http://localhost:4000/api/tests', {
+      const createResponse = await fetch('http://localhost:3001/api/tests', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -217,7 +217,7 @@ const duplicateTest = async (testId: number) => {
 const deleteTest = async (testId: number) => {
   if (confirm('¿Estás seguro de que quieres eliminar esta prueba?')) {
     try {
-      const response = await fetch(`http://localhost:4000/api/tests/${testId}`, {
+      const response = await fetch(`http://localhost:3001/api/tests/${testId}`, {
         method: 'DELETE'
       })
       

@@ -27,7 +27,7 @@ router.get('/token/:token', (req, res) => {
   try {
     const { token } = req.params;
 
-    // Buscar sesión por invitation_token (CORREGIDO)
+    // Buscar sesión por token (CORREGIDO)
     const sessionQuery = `
       SELECT s.*, t.name as test_name, t.description as test_description, 
              t.time_limit, t.max_attempts, t.passing_score,
@@ -88,7 +88,7 @@ router.post('/:token/start', (req, res) => {
     const { token } = req.params;
     const { browserInfo, ipAddress } = req.body;
 
-    // Find session by invitation_token (CORREGIDO)
+    // Find session by token
     const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
     
     if (!session) {
@@ -99,14 +99,15 @@ router.post('/:token/start', (req, res) => {
       return res.status(400).json({ error: 'La sesión ya ha sido iniciada' });
     }
 
-    // Update session to started
+    // Update session to started - CORREGIDO
     const updateQuery = `
       UPDATE test_sessions 
       SET status = 'in_progress', started_at = ?, browser_info = ?, ip_address = ?
       WHERE token = ?
     `;
-    
+
     const timestamp = new Date().toISOString();
+
     const values = [
       timestamp,
       JSON.stringify(browserInfo || {}),
@@ -169,39 +170,13 @@ router.post('/:token/start', (req, res) => {
   }
 });
 
-// Get answers for session
-router.get('/:token/answers', (req, res) => {
-  try {
-    const { token } = req.params;
-
-    // Find session by token
-    const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
-    
-    if (!session) {
-      return res.status(404).json({ error: 'Sesión no encontrada' });
-    }
-
-    // Get existing answers for this session
-    const answersQuery = `
-      SELECT * FROM answers 
-      WHERE session_id = ?
-    `;
-
-    const answers = db.prepare(answersQuery).all(session.id);
-    res.json(answers);
-  } catch (error) {
-    console.error('Error al obtener respuestas:', error);
-    res.status(500).json({ error: 'Error al obtener respuestas' });
-  }
-});
-
 // Submit answer
 router.post('/:token/answer', (req, res) => {
   try {
     const { token } = req.params;
     const { questionId, answer, timeSpent } = req.body;
 
-    // Find session by invitation_token (CORREGIDO)
+    // Find session by token
     const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
     
     if (!session || session.status !== 'in_progress') {
@@ -245,7 +220,7 @@ router.post('/:token/answer', (req, res) => {
     } else {
       // Create new answer
       const insertQuery = `
-        INSERT INTO answers (session_id, question_id, answer_text, time_spent_seconds, max_score, attempts_count, created_at, last_modified_at)
+        INSERT INTO answers (session_id, question_id, answer_text, time_spent_seconds, max_score, attempts_count, submitted_at, last_modified_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `;
       
@@ -269,11 +244,10 @@ router.post('/:token/answer', (req, res) => {
   }
 });
 
-// Log activity route (NUEVA RUTA AGREGADA)
-router.post('/:token/log-activity', (req, res) => {
+// Get answers for session
+router.get('/:token/answers', (req, res) => {
   try {
     const { token } = req.params;
-    const { activity_type, activity_data } = req.body;
 
     // Find session by token
     const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
@@ -282,20 +256,26 @@ router.post('/:token/log-activity', (req, res) => {
       return res.status(404).json({ error: 'Sesión no encontrada' });
     }
 
-    // Log activity (respuesta exitosa simple por ahora)
-    res.json({ message: 'Actividad registrada' });
+    // Get existing answers for this session
+    const answersQuery = `
+      SELECT * FROM answers 
+      WHERE session_id = ?
+    `;
+
+    const answers = db.prepare(answersQuery).all(session.id);
+    res.json(answers);
   } catch (error) {
-    console.error('Error al registrar actividad:', error);
-    res.status(500).json({ error: 'Error al registrar actividad' });
+    console.error('Error al obtener respuestas:', error);
+    res.status(500).json({ error: 'Error al obtener respuestas' });
   }
 });
 
-// Finish test session
+// Finish test session - CORREGIDO
 router.post('/:token/finish', (req, res) => {
   try {
     const { token } = req.params;
 
-    // Find session by invitation_token (CORREGIDO)
+    // Find session by token
     const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
     
     if (!session) {
@@ -312,7 +292,7 @@ router.post('/:token/finish', (req, res) => {
     const timeSpentSeconds = Math.floor((currentTime - startTime) / 1000);
     const timestamp = new Date().toISOString();
 
-    // Update session status
+    // Update session status - CORREGIDO
     const updateQuery = `
       UPDATE test_sessions 
       SET status = 'completed', finished_at = ?, time_spent_seconds = ?
@@ -323,6 +303,7 @@ router.post('/:token/finish', (req, res) => {
 
     db.prepare(updateQuery).run(...values);
 
+    console.log('🔄 Intentando actualizar candidato para token:', token);
     // Actualizar también el estado del candidato
     const updateCandidateQuery = `
       UPDATE candidates 
@@ -330,7 +311,6 @@ router.post('/:token/finish', (req, res) => {
       WHERE id = (SELECT candidate_id FROM test_sessions WHERE token = ?)
     `;
 
-    console.log('🔄 Intentando actualizar candidato para token:', token);
     const candidateUpdateResult = db.prepare(updateCandidateQuery).run(timestamp, token);
     console.log('✅ Candidato actualizado. Filas afectadas:', candidateUpdateResult.changes);
 
