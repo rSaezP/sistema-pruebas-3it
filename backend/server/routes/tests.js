@@ -392,4 +392,109 @@ router.post('/test-cases', (req, res) => {
   }
 });
 
+// Update existing test
+router.put('/:id', (req, res) => {
+  try {
+    const testId = parseInt(req.params.id);
+    const { name, description, time_limit, passing_score, is_active, questions } = req.body;
+    
+    // Check if test exists
+    const existingTest = db.prepare('SELECT * FROM tests WHERE id = ?').get(testId);
+    
+    if (!existingTest) {
+      return res.status(404).json({ error: 'Prueba no encontrada' });
+    }
+
+    // Update test basic data
+    const updateTestQuery = `
+      UPDATE tests 
+      SET name = ?, description = ?, time_limit = ?, passing_score = ?, is_active = ?, updated_at = ?
+      WHERE id = ?
+    `;
+    
+    const timestamp = new Date().toISOString();
+    const testValues = [
+      name || existingTest.name,
+      description !== undefined ? description : existingTest.description,
+      time_limit || existingTest.time_limit,
+      passing_score || existingTest.passing_score,
+      is_active !== undefined ? (is_active ? 1 : 0) : existingTest.is_active,
+      timestamp,
+      testId
+    ];
+
+    db.prepare(updateTestQuery).run(...testValues);
+
+    // Handle questions update if provided
+    if (questions && Array.isArray(questions)) {
+      // Delete existing test_cases and questions for this test
+      db.prepare('DELETE FROM test_cases WHERE question_id IN (SELECT id FROM questions WHERE test_id = ?)').run(testId);
+      db.prepare('DELETE FROM questions WHERE test_id = ?').run(testId);
+      
+      // Insert updated questions
+      const questionQuery = `
+        INSERT INTO questions (test_id, category_id, family_id, type, title, description, difficulty, max_score, order_index, initial_code, language, database_schema, options, correct_answer, execution_timeout, allow_partial_credit, show_expected_output, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      
+      const insertQuestion = db.prepare(questionQuery);
+      
+      questions.forEach((question, index) => {
+        const questionValues = [
+          testId,
+          1, // category_id
+          1, // family_id
+          question.type || 'programming',
+          question.title,
+          question.description || '',
+          question.difficulty || 'Medio',
+          question.max_score || 10,
+          index + 1,
+          question.initial_code || '',
+          question.language || 'javascript',
+          question.database_schema || '',
+          question.options ? JSON.stringify(question.options) : null,
+          question.correct_answer || question.expected_solution || '',
+          question.execution_timeout || 5000,
+          1, // allow_partial_credit
+          0, // show_expected_output
+          timestamp
+        ];
+        
+        const questionResult = db.prepare(questionQuery).run(...questionValues);
+        
+        // Insert test cases for this question
+        if (question.test_cases && Array.isArray(question.test_cases) && question.test_cases.length > 0) {
+          const testCaseQuery = `
+            INSERT INTO test_cases (question_id, name, input_data, expected_output, is_hidden, weight, timeout_ms, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `;
+          
+          const insertTestCase = db.prepare(testCaseQuery);
+          
+          question.test_cases.forEach(testCase => {
+            const testCaseValues = [
+              questionResult.lastInsertRowid,
+              testCase.name || 'Test Case',
+              testCase.input_data || '',
+              testCase.expected_output || '',
+              testCase.is_hidden ? 1 : 0,
+              testCase.weight || 1.0,
+              testCase.timeout_ms || 5000,
+              timestamp
+            ];
+            
+            insertTestCase.run(...testCaseValues);
+          });
+        }
+      });
+    }
+
+    res.json({ message: 'Prueba actualizada exitosamente', testId });
+  } catch (error) {
+    console.error('Error al actualizar prueba:', error);
+    res.status(500).json({ error: 'Error al actualizar prueba' });
+  }
+});
+
 export default router;

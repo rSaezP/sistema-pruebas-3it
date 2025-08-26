@@ -96,7 +96,9 @@
       </div>
 
       <!-- SQL Question -->
+      {{ console.log('🔍 VERIFICANDO TIPO DE PREGUNTA:', questionData.type, questionData.type === 'sql') }}
       <div v-if="questionData.type === 'sql'" class="form-section">
+        {{ console.log('🔍 MOSTRANDO SECCION SQL', questionData.type, questionData.test_cases) }}
         <h4>Configuración de SQL</h4>
         
         <div class="form-group">
@@ -126,11 +128,103 @@
           </small>
         </div>
 
-        <!-- Test Cases for SQL -->
-        <TestCaseEditor
-          :test-cases="questionData.test_cases"
-          @update:test-cases="updateTestCases"
-        />
+        <!-- SQL Test Cases -->
+        <div class="form-group">
+          <label>Casos de Prueba SQL</label>
+          <small class="form-help">
+            Define casos de prueba para validar las consultas SQL de los candidatos
+          </small>
+          
+          <div class="test-cases-list">
+            <div 
+              v-for="(testCase, index) in questionData.test_cases" 
+              :key="testCase.id || index"
+              class="test-case-card"
+            >
+              <div class="test-case-header">
+                <h5>Caso de Prueba {{ index + 1 }}</h5>
+                <button 
+                  type="button"
+                  @click="removeSQLTestCase(index)"
+                  class="btn-remove"
+                  v-if="questionData.test_cases.length > 1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div class="test-case-content">
+                <div class="form-group">
+                  <label :for="`sql-test-case-name-${index}`">Descripción del Caso</label>
+                  <input 
+                    :id="`sql-test-case-name-${index}`"
+                    v-model="testCase.name"
+                    type="text"
+                    placeholder="Ej: Obtener usuarios activos del último mes"
+                    class="input"
+                  >
+                </div>
+
+                <div class="form-group">
+                  <label :for="`sql-test-setup-${index}`">Datos de Prueba (opcional)</label>
+                  <textarea 
+                    :id="`sql-test-setup-${index}`"
+                    v-model="testCase.input_data"
+                    rows="3"
+                    placeholder="INSERT statements para configurar datos específicos para este caso"
+                    class="input textarea"
+                  ></textarea>
+                </div>
+
+                <div class="form-group">
+                  <label :for="`sql-expected-result-${index}`">Resultado Esperado</label>
+                  <textarea 
+                    :id="`sql-expected-result-${index}`"
+                    v-model="testCase.expected_output"
+                    rows="4"
+                    placeholder="Resultado esperado en formato JSON o texto descriptivo"
+                    class="input textarea"
+                  ></textarea>
+                  <small class="form-help">
+                    Describe qué datos debe retornar la consulta del candidato
+                  </small>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input 
+                        type="checkbox"
+                        v-model="testCase.is_hidden"
+                      >
+                      Caso oculto (no visible para el candidato)
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label :for="`sql-weight-${index}`">Peso (%)</label>
+                    <input 
+                      :id="`sql-weight-${index}`"
+                      v-model.number="testCase.weight"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      class="input"
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button 
+            type="button"
+            @click="addSQLTestCase"
+            class="btn btn-secondary btn-sm"
+          >
+            + Agregar Caso de Prueba
+          </button>
+        </div>
       </div>
 
       <!-- Multiple Choice Question -->
@@ -248,14 +342,8 @@ const isValid = computed(() => {
            questionData.value.correct_answer.trim() && 
            questionData.value.test_cases.length > 0
   } else if (questionData.value.type === 'multiple_choice') {
-    if (!questionData.value.options) return false
-    
-    const options = Array.isArray(questionData.value.options) 
-      ? questionData.value.options 
-      : []
-    
-    const hasAllOptions = options.every((opt: any) => opt.text && opt.text.trim())
-    const hasCorrectAnswer = options.some((opt: any) => opt.correct)
+    const hasAllOptions = questionData.value.options.every((opt: any) => opt.text.trim())
+    const hasCorrectAnswer = questionData.value.options.some((opt: any) => opt.correct)
     return base && hasAllOptions && hasCorrectAnswer
   }
   
@@ -268,18 +356,41 @@ const updateTestCases = (newTestCases: TestCase[]) => {
 }
 
 const setCorrectOption = (index: number) => {
-  if (questionData.value.options && Array.isArray(questionData.value.options)) {
+  if (Array.isArray(questionData.value.options)) {
     (questionData.value.options as MultipleChoiceOption[]).forEach((option, i) => {
       option.correct = i === index
     })
   }
 }
 
+// SQL Test Cases Methods
+const addSQLTestCase = () => {
+  const newTestCase: TestCase = {
+    id: crypto.randomUUID(),
+    name: '',
+    input_data: '',
+    expected_output: '',
+    is_hidden: false,
+    weight: 1.0,
+    timeout_ms: 5000
+  }
+  
+  questionData.value.test_cases.push(newTestCase)
+}
+
+const removeSQLTestCase = (index: number) => {
+  if (questionData.value.test_cases.length > 1) {
+    questionData.value.test_cases.splice(index, 1)
+  }
+}
+
 const saveQuestion = () => {
   if (!isValid.value) return
   
+  // Prepare question data
   const questionToSave = { ...questionData.value }
   
+  // Convert options to JSON string for storage
   if (questionToSave.type === 'multiple_choice') {
     questionToSave.options = JSON.stringify(questionToSave.options)
   }
@@ -289,23 +400,15 @@ const saveQuestion = () => {
 
 // Watchers
 watch(() => props.modelValue, (newValue) => {
+  console.log('🔍 QUESTIONEDITOR WATCHER EJECUTADO:', newValue?.type, newValue?.test_cases?.length)
   if (newValue) {
     questionData.value = { ...newValue }
     
     // Parse options if it's a string
-    if (questionData.value.type === 'multiple_choice') {
-      if (typeof questionData.value.options === 'string') {
-        try {
-          questionData.value.options = JSON.parse(questionData.value.options)
-        } catch {
-          questionData.value.options = [
-            { text: '', correct: false },
-            { text: '', correct: false },
-            { text: '', correct: false },
-            { text: '', correct: false }
-          ]
-        }
-      } else if (!questionData.value.options) {
+    if (questionData.value.type === 'multiple_choice' && typeof questionData.value.options === 'string') {
+      try {
+        questionData.value.options = JSON.parse(questionData.value.options)
+      } catch {
         questionData.value.options = [
           { text: '', correct: false },
           { text: '', correct: false },
@@ -315,13 +418,10 @@ watch(() => props.modelValue, (newValue) => {
       }
     }
     
-    // Ensure test_cases is an array
-    if (!Array.isArray(questionData.value.test_cases)) {
-      questionData.value.test_cases = []
-    }
-    
     // Initialize test cases for SQL if empty
-    if (questionData.value.type === 'sql' && questionData.value.test_cases.length === 0) {
+    console.log('🔍 DEBUG SQL WATCHER:', questionData.value.type, questionData.value.test_cases?.length, props.isEditing)
+    if (questionData.value.type === 'sql' && (!questionData.value.test_cases || questionData.value.test_cases.length === 0)) {
+      console.log('🔍 CREANDO CASOS DE PRUEBA SQL')
       questionData.value.test_cases = [{
         id: crypto.randomUUID(),
         name: 'Caso de prueba 1',
@@ -330,10 +430,15 @@ watch(() => props.modelValue, (newValue) => {
         is_hidden: false,
         weight: 1.0,
         timeout_ms: 5000
-      }]
+      } as TestCase]
     }
     
-    // Add default test case for new programming questions
+    // Ensure test_cases is an array
+    if (!Array.isArray(questionData.value.test_cases)) {
+      questionData.value.test_cases = [] as TestCase[]
+    }
+    
+    // Add default test case ONLY for new programming questions
     if (questionData.value.type === 'programming' && questionData.value.test_cases.length === 0 && !props.isEditing) {
       questionData.value.test_cases = [{
         id: crypto.randomUUID(),
@@ -343,7 +448,7 @@ watch(() => props.modelValue, (newValue) => {
         is_hidden: false,
         weight: 1.0,
         timeout_ms: 5000
-      }]
+      } as TestCase]
     }
     
     // Ensure expected_solution exists
@@ -360,19 +465,33 @@ watch(questionData, (newData) => {
 
 // Lifecycle
 onMounted(() => {
-  // Initialize test cases for both programming and SQL questions on mount
-  if ((questionData.value.type === 'programming' || questionData.value.type === 'sql') && questionData.value.test_cases.length === 0) {
+  // Initialize with default test case for programming questions ONLY on mount
+  if (questionData.value.type === 'programming' && questionData.value.test_cases.length === 0) {
     questionData.value.test_cases = [{
       id: crypto.randomUUID(),
-      name: questionData.value.type === 'sql' ? 'Caso de prueba 1' : 'Caso 1',
+      name: 'Caso 1',
       input_data: '',
       expected_output: '',
       is_hidden: false,
       weight: 1.0,
       timeout_ms: 5000
-    }]
+    } as TestCase]
   }
   
+  // Initialize with default test case for SQL questions ONLY on mount
+  if (questionData.value.type === 'sql' && questionData.value.test_cases.length === 0) {
+    questionData.value.test_cases = [{
+      id: crypto.randomUUID(),
+      name: 'Caso de prueba 1',
+      input_data: '',
+      expected_output: '',
+      is_hidden: false,
+      weight: 1.0,
+      timeout_ms: 5000
+    } as TestCase]
+  }
+  
+  // Ensure expected_solution exists
   if (!questionData.value.expected_solution) {
     questionData.value.expected_solution = ''
   }

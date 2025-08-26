@@ -125,6 +125,12 @@
             Consulta SQL que representa la respuesta correcta (para validación)
           </small>
         </div>
+
+        <!-- Test Cases for SQL -->
+        <TestCaseEditor
+          :test-cases="questionData.test_cases"
+          @update:test-cases="updateTestCases"
+        />
       </div>
 
       <!-- Multiple Choice Question -->
@@ -186,16 +192,21 @@ import { ref, computed, watch, onMounted } from 'vue'
 import CodeEditor from './CodeEditor.vue'
 import LanguageSelector from './LanguageSelector.vue'
 import TestCaseEditor from './TestCaseEditor.vue'
+import type { Question, TestCase, MultipleChoiceOption } from '../types'
 
 // Props
 const props = defineProps<{
-  modelValue: any
+  modelValue: Question
   isEditing?: boolean
   hideActions?: boolean
 }>()
 
 // Emits
-const emit = defineEmits(['update:modelValue', 'save', 'cancel'])
+const emit = defineEmits<{
+  'update:modelValue': [value: Question]
+  'save': [question: Question]
+  'cancel': []
+}>()
 
 // Refs
 const codeEditorRef = ref()
@@ -203,7 +214,7 @@ const solutionEditorRef = ref()
 const sqlEditorRef = ref()
 
 // Reactive data
-const questionData = ref({
+const questionData = ref<Question>({
   tempId: '',
   type: 'programming',
   title: '',
@@ -221,7 +232,7 @@ const questionData = ref({
     { text: '', correct: false }
   ],
   correct_answer: '',
-  test_cases: []
+  test_cases: [] as TestCase[]
 })
 
 // Computed
@@ -233,10 +244,18 @@ const isValid = computed(() => {
            questionData.value.expected_solution.trim() && 
            questionData.value.test_cases.length > 0
   } else if (questionData.value.type === 'sql') {
-    return base && questionData.value.correct_answer.trim()
+    return base && 
+           questionData.value.correct_answer.trim() && 
+           questionData.value.test_cases.length > 0
   } else if (questionData.value.type === 'multiple_choice') {
-    const hasAllOptions = questionData.value.options.every((opt: any) => opt.text.trim())
-    const hasCorrectAnswer = questionData.value.options.some((opt: any) => opt.correct)
+    if (!questionData.value.options) return false
+    
+    const options = Array.isArray(questionData.value.options) 
+      ? questionData.value.options 
+      : []
+    
+    const hasAllOptions = options.every((opt: any) => opt.text && opt.text.trim())
+    const hasCorrectAnswer = options.some((opt: any) => opt.correct)
     return base && hasAllOptions && hasCorrectAnswer
   }
   
@@ -244,23 +263,23 @@ const isValid = computed(() => {
 })
 
 // Methods
-const updateTestCases = (newTestCases: any[]) => {
+const updateTestCases = (newTestCases: TestCase[]) => {
   questionData.value.test_cases = newTestCases
 }
 
 const setCorrectOption = (index: number) => {
-  questionData.value.options.forEach((option: any, i: number) => {
-    option.correct = i === index
-  })
+  if (questionData.value.options && Array.isArray(questionData.value.options)) {
+    (questionData.value.options as MultipleChoiceOption[]).forEach((option, i) => {
+      option.correct = i === index
+    })
+  }
 }
 
 const saveQuestion = () => {
   if (!isValid.value) return
   
-  // Prepare question data
   const questionToSave = { ...questionData.value }
   
-  // Convert options to JSON string for storage
   if (questionToSave.type === 'multiple_choice') {
     questionToSave.options = JSON.stringify(questionToSave.options)
   }
@@ -274,10 +293,19 @@ watch(() => props.modelValue, (newValue) => {
     questionData.value = { ...newValue }
     
     // Parse options if it's a string
-    if (questionData.value.type === 'multiple_choice' && typeof questionData.value.options === 'string') {
-      try {
-        questionData.value.options = JSON.parse(questionData.value.options)
-      } catch {
+    if (questionData.value.type === 'multiple_choice') {
+      if (typeof questionData.value.options === 'string') {
+        try {
+          questionData.value.options = JSON.parse(questionData.value.options)
+        } catch {
+          questionData.value.options = [
+            { text: '', correct: false },
+            { text: '', correct: false },
+            { text: '', correct: false },
+            { text: '', correct: false }
+          ]
+        }
+      } else if (!questionData.value.options) {
         questionData.value.options = [
           { text: '', correct: false },
           { text: '', correct: false },
@@ -292,7 +320,20 @@ watch(() => props.modelValue, (newValue) => {
       questionData.value.test_cases = []
     }
     
-    // Add default test case ONLY for new programming questions
+    // Initialize test cases for SQL if empty
+    if (questionData.value.type === 'sql' && questionData.value.test_cases.length === 0) {
+      questionData.value.test_cases = [{
+        id: crypto.randomUUID(),
+        name: 'Caso de prueba 1',
+        input_data: '',
+        expected_output: '',
+        is_hidden: false,
+        weight: 1.0,
+        timeout_ms: 5000
+      }]
+    }
+    
+    // Add default test case for new programming questions
     if (questionData.value.type === 'programming' && questionData.value.test_cases.length === 0 && !props.isEditing) {
       questionData.value.test_cases = [{
         id: crypto.randomUUID(),
@@ -319,11 +360,11 @@ watch(questionData, (newData) => {
 
 // Lifecycle
 onMounted(() => {
-  // Initialize with default test case for programming questions ONLY on mount
-  if (questionData.value.type === 'programming' && questionData.value.test_cases.length === 0) {
+  // Initialize test cases for both programming and SQL questions on mount
+  if ((questionData.value.type === 'programming' || questionData.value.type === 'sql') && questionData.value.test_cases.length === 0) {
     questionData.value.test_cases = [{
       id: crypto.randomUUID(),
-      name: 'Caso 1',
+      name: questionData.value.type === 'sql' ? 'Caso de prueba 1' : 'Caso 1',
       input_data: '',
       expected_output: '',
       is_hidden: false,
@@ -332,7 +373,6 @@ onMounted(() => {
     }]
   }
   
-  // Ensure expected_solution exists
   if (!questionData.value.expected_solution) {
     questionData.value.expected_solution = ''
   }

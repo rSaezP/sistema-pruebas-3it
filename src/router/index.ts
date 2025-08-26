@@ -8,7 +8,7 @@ const TestLayout = () => import('@/layouts/TestLayout.vue');
 const DashboardView = () => import('@/views/admin/Dashboard.vue');
 const TestsListView = () => import('@/views/admin/TestsList.vue');
 const CreateTestView = () => import('@/views/admin/CreateTest.vue');
-const EditTestView = () => import('@/views/admin/EditTest.vue');
+const EditTestView = () => import('@/views/admin/EditTestSimple.vue');
 const CandidatesView = () => import('@/views/admin/Candidates.vue');
 const ReportsView = () => import('@/views/admin/Reports.vue');
 

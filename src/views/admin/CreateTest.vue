@@ -156,6 +156,7 @@
             
             <!-- Inline Question Editor -->
             <div class="question-form-content">
+              {{ console.log('🔍 CREANDO QUESTIONEDITOR PARA:', testData.questions[index].type) }}
               <QuestionEditor
                 :modelValue="testData.questions[index]"
                 :isEditing="true"
@@ -271,6 +272,7 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import QuestionEditor from '../../components/QuestionEditor.vue'
+import type { Test, Question, TestCase } from '../../types'
 
 // Router and Toast
 const router = useRouter()
@@ -283,13 +285,13 @@ const newQuestionType = ref('')
 const savedQuestionIds = ref([])
 
 // Test data
-const testData = ref({
+const testData = ref<Test>({
   name: '',
   description: '',
   time_limit: 60,
   passing_score: 60,
   is_active: true,
-  questions: [] as any[]
+  questions: [] as Question[]
 })
 
 // Computed properties for reactivity
@@ -314,7 +316,7 @@ const goBack = () => {
 }
 
 // Question validation and saving functions
-const isQuestionValid = (question: any) => {
+const isQuestionValid = (question: Question) => {
   if (!question.title?.trim()) return false
   
   switch (question.type) {
@@ -322,7 +324,10 @@ const isQuestionValid = (question: any) => {
       return question.test_cases?.length > 0 && question.expected_solution?.trim()
     case 'multiple_choice':
       const options = question.options || []
-      return options.length >= 2 && options.some((opt: any) => opt.correct && opt.text?.trim())
+      if (Array.isArray(options)) {
+        return options.length >= 2 && options.some(opt => opt.correct && opt.text?.trim())
+      }
+      return false
     case 'sql':
       return !!question.title?.trim()
     default:
@@ -363,13 +368,14 @@ const nextStep = () => {
 }
 
 const addQuestion = () => {
+  console.log('🔍 ADD QUESTION EJECUTADO:', newQuestionType.value)
   if (!newQuestionType.value) return
   
   const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
   
-  const newQuestion = {
+  const newQuestion: Question = {
     tempId,
-    type: newQuestionType.value,
+    type: newQuestionType.value as 'programming' | 'sql' | 'multiple_choice',
     title: '',
     description: '',
     difficulty: 'Medio',
@@ -385,23 +391,24 @@ const addQuestion = () => {
       { text: '', correct: false }
     ] : [],
     correct_answer: '',
-    test_cases: newQuestionType.value === 'programming' ? [{
+    test_cases: (newQuestionType.value === 'programming' || newQuestionType.value === 'sql') ? [{
       id: crypto.randomUUID(),
-      name: 'Caso 1',
+      name: newQuestionType.value === 'sql' ? 'Caso de prueba 1' : 'Caso 1',
       input_data: '',
       expected_output: '',
       is_hidden: false,
       weight: 1.0,
       timeout_ms: 5000
-    }] : []
+    } as TestCase] : [] as TestCase[]
   }
   
   testData.value.questions.push(newQuestion)
+  console.log('🔍 PREGUNTA AGREGADA A LISTA:', newQuestion.type, testData.value.questions.length)
   newQuestionType.value = ''
   toast.success('Pregunta agregada')
 }
 
-const updateQuestionData = (index: number, questionData: any) => {
+const updateQuestionData = (index: number, questionData: Question) => {
   // Update without triggering reactive loops
   Object.assign(testData.value.questions[index], questionData)
 }
