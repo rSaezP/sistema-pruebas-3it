@@ -27,7 +27,10 @@ router.get('/token/:token', (req, res) => {
   try {
     const { token } = req.params;
 
-    // Buscar sesión por invitation_token (CORREGIDO)
+    console.log('=== DEBUG GET TOKEN ===');
+    console.log('Token recibido:', token);
+
+    // Buscar sesión por token (usando el campo correcto)
     const sessionQuery = `
       SELECT s.*, t.name as test_name, t.description as test_description, 
              t.time_limit, t.max_attempts, t.passing_score,
@@ -39,8 +42,10 @@ router.get('/token/:token', (req, res) => {
     `;
 
     const session = db.prepare(sessionQuery).get(token);
+    console.log('Sesión encontrada:', session);
     
     if (!session) {
+      console.log('No se encontró sesión con token:', token);
       return res.status(404).json({ error: 'Sesión no encontrada' });
     }
 
@@ -63,6 +68,7 @@ router.get('/token/:token', (req, res) => {
     `;
 
     const questions = db.prepare(questionsQuery).all(session.test_id);
+    console.log('Preguntas encontradas:', questions.length);
 
     // Agregar time_limit_minutes que espera el frontend
     const sessionWithTimeLimit = {
@@ -88,23 +94,29 @@ router.post('/:token/start', (req, res) => {
     const { token } = req.params;
     const { browserInfo, ipAddress } = req.body;
 
-    // Find session by invitation_token (CORREGIDO)
+    console.log('=== DEBUG START SESSION ===');
+    console.log('Token:', token);
+
+    // Find session by token
     const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
+    console.log('Sesión encontrada para start:', session);
     
     if (!session) {
+      console.log('No se encontró sesión para iniciar con token:', token);
       return res.status(404).json({ error: 'Sesión no encontrada' });
     }
 
     if (session.status !== 'pending') {
+      console.log('Estado de sesión inválido:', session.status);
       return res.status(400).json({ error: 'La sesión ya ha sido iniciada' });
     }
 
     // Update session to started
     const updateQuery = `
-      UPDATE test_sessions 
-      SET status = 'in_progress', started_at = ?, browser_info = ?, ip_address = ?
-      WHERE token = ?
-    `;
+        UPDATE test_sessions 
+        SET status = 'completed', finished_at = ?, time_spent_seconds = ?
+        WHERE token = ?
+      `;
     
     const timestamp = new Date().toISOString();
     const values = [
@@ -114,7 +126,8 @@ router.post('/:token/start', (req, res) => {
       token
     ];
 
-    db.prepare(updateQuery).run(...values);
+    const updateResult = db.prepare(updateQuery).run(...values);
+    console.log('Sesión actualizada, cambios:', updateResult.changes);
 
     // Get test questions
     const questionsQuery = `
@@ -169,39 +182,13 @@ router.post('/:token/start', (req, res) => {
   }
 });
 
-// Get answers for session
-router.get('/:token/answers', (req, res) => {
-  try {
-    const { token } = req.params;
-
-    // Find session by token
-    const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
-    
-    if (!session) {
-      return res.status(404).json({ error: 'Sesión no encontrada' });
-    }
-
-    // Get existing answers for this session
-    const answersQuery = `
-      SELECT * FROM answers 
-      WHERE session_id = ?
-    `;
-
-    const answers = db.prepare(answersQuery).all(session.id);
-    res.json(answers);
-  } catch (error) {
-    console.error('Error al obtener respuestas:', error);
-    res.status(500).json({ error: 'Error al obtener respuestas' });
-  }
-});
-
 // Submit answer
 router.post('/:token/answer', (req, res) => {
   try {
     const { token } = req.params;
     const { questionId, answer, timeSpent } = req.body;
 
-    // Find session by invitation_token (CORREGIDO)
+    // Find session by token
     const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
     
     if (!session || session.status !== 'in_progress') {
@@ -243,22 +230,23 @@ router.post('/:token/answer', (req, res) => {
       db.prepare(updateQuery).run(...values);
       res.json({ message: 'Respuesta actualizada exitosamente' });
     } else {
+
       // Create new answer
+      // ✅ CORRECTO - debe ser:
       const insertQuery = `
-        INSERT INTO answers (session_id, question_id, answer_text, time_spent_seconds, max_score, attempts_count, created_at, last_modified_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO answers (session_id, question_id, answer_text, time_spent_seconds, max_score, attempts_count, last_modified_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `;
-      
+            
       const values = [
-        session.id,
-        parseInt(questionId),
-        answer,
-        timeSpent || 0,
-        question.max_score,
-        1,
-        timestamp,
-        timestamp
-      ];
+      session.id,
+      parseInt(questionId),
+      answer,
+      timeSpent || 0,
+      question.max_score,
+      1,
+      timestamp
+    ];
 
       db.prepare(insertQuery).run(...values);
       res.json({ message: 'Respuesta guardada exitosamente' });
@@ -269,33 +257,12 @@ router.post('/:token/answer', (req, res) => {
   }
 });
 
-// Log activity route (NUEVA RUTA AGREGADA)
-router.post('/:token/log-activity', (req, res) => {
-  try {
-    const { token } = req.params;
-    const { activity_type, activity_data } = req.body;
-
-    // Find session by token
-    const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
-    
-    if (!session) {
-      return res.status(404).json({ error: 'Sesión no encontrada' });
-    }
-
-    // Log activity (respuesta exitosa simple por ahora)
-    res.json({ message: 'Actividad registrada' });
-  } catch (error) {
-    console.error('Error al registrar actividad:', error);
-    res.status(500).json({ error: 'Error al registrar actividad' });
-  }
-});
-
 // Finish test session
 router.post('/:token/finish', (req, res) => {
   try {
     const { token } = req.params;
 
-    // Find session by invitation_token (CORREGIDO)
+    // Find session by token
     const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
     
     if (!session) {
@@ -322,17 +289,6 @@ router.post('/:token/finish', (req, res) => {
     const values = [timestamp, timeSpentSeconds, token];
 
     db.prepare(updateQuery).run(...values);
-
-    // Actualizar también el estado del candidato
-    const updateCandidateQuery = `
-      UPDATE candidates 
-      SET status = 'completed', updated_at = ?
-      WHERE id = (SELECT candidate_id FROM test_sessions WHERE token = ?)
-    `;
-
-    console.log('🔄 Intentando actualizar candidato para token:', token);
-    const candidateUpdateResult = db.prepare(updateCandidateQuery).run(timestamp, token);
-    console.log('✅ Candidato actualizado. Filas afectadas:', candidateUpdateResult.changes);
 
     res.json({ message: 'Prueba finalizada exitosamente', timeSpent: timeSpentSeconds });
   } catch (error) {

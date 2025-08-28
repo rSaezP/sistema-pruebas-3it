@@ -101,6 +101,9 @@ router.post('/', (req, res) => {
     console.log('test_id recibido:', test_id);
     console.log('test_id type:', typeof test_id);
     console.log('test_id truthy:', !!test_id);
+    console.log('=== DATOS RECIBIDOS COMPLETOS ===', { name, lastname, email, test_id, expires_at });
+
+  console.log('=== DEBUG GENERAL ===');
 
     // Si tiene test_id, crear también la sesión correspondiente
     if (test_id) {
@@ -112,8 +115,8 @@ router.post('/', (req, res) => {
       
       if (test) {
         const insertSessionQuery = `
-          INSERT INTO test_sessions (candidate_id, test_id, token, time_limit_minutes, status, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)
+          INSERT INTO test_sessions (candidate_id, test_id, token, time_limit_minutes, status, created_at)
+          VALUES (?, ?, ?, ?, ?, ?)
         `;
         
         const sessionValues = [
@@ -122,7 +125,6 @@ router.post('/', (req, res) => {
           sessionToken,
           test.time_limit,
           'pending',
-          timestamp,
           timestamp
         ];
         
@@ -152,7 +154,6 @@ router.post('/', (req, res) => {
   }
 });
 
-// Invite candidate to test
 router.post('/:candidateId/invite', (req, res) => {
   try {
     const candidateId = parseInt(req.params.candidateId);
@@ -162,61 +163,35 @@ router.post('/:candidateId/invite', (req, res) => {
       return res.status(400).json({ error: 'ID de prueba requerido' });
     }
 
-    // Check if candidate exists
     const candidate = db.prepare('SELECT * FROM candidates WHERE id = ?').get(candidateId);
-    
     if (!candidate) {
       return res.status(404).json({ error: 'Candidato no encontrado' });
     }
 
-    // Check if test exists
     const test = db.prepare('SELECT * FROM tests WHERE id = ?').get(parseInt(testId));
-    
     if (!test) {
       return res.status(404).json({ error: 'Prueba no encontrada' });
     }
 
-    // Check if session already exists for this candidate and test
-    const existingSession = db.prepare(`
-      SELECT * FROM test_sessions 
-      WHERE candidate_id = ? AND test_id = ? AND status != 'cancelled'
-    `).get(candidateId, parseInt(testId));
-    
-    if (existingSession) {
-      return res.status(400).json({ 
-        error: 'El candidato ya tiene una sesión activa para esta prueba',
-        sessionId: existingSession.id,
-        token: existingSession.token
-      });
-    }
-
-    // Create new test session
     const token = uuidv4();
     const timestamp = new Date().toISOString();
     
     const insertSessionQuery = `
-      INSERT INTO test_sessions (candidate_id, test_id, token, time_limit_minutes, status, started_at, completed_at, percentage_score, time_spent_seconds, browser_info, ip_address, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO test_sessions (candidate_id, test_id, token, time_limit_minutes, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
     `;
     
     const sessionValues = [
-      candidateId,
-      parseInt(testId),
-      token,
+      candidateId,           // ✅ CORREGIDO
+      parseInt(testId),      // ✅ CORREGIDO  
+      token,                 // ✅ CORREGIDO
       test.time_limit,
       'pending',
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      timestamp,
       timestamp
     ];
 
     const result = db.prepare(insertSessionQuery).run(...sessionValues);
-
+    
     const testUrl = `${req.protocol}://${req.get('host')}/test/${token}`;
 
     res.json({
@@ -258,13 +233,10 @@ router.delete('/:id', (req, res) => {
     db.prepare('BEGIN TRANSACTION').run();
     
     try {
-      // Primero eliminar las sesiones relacionadas
-
       // Eliminar answers primero
-        db.prepare('DELETE FROM answers WHERE session_id IN (SELECT id FROM test_sessions WHERE candidate_id = ?)').run(candidateId);
-        // Eliminar test_sessions
-        db.prepare('DELETE FROM test_sessions WHERE candidate_id = ?').run(candidateId);
-
+      db.prepare('DELETE FROM answers WHERE session_id IN (SELECT id FROM test_sessions WHERE candidate_id = ?)').run(candidateId);
+      // Eliminar test_sessions
+      db.prepare('DELETE FROM test_sessions WHERE candidate_id = ?').run(candidateId);
       
       // Luego eliminar el candidato
       const result = db.prepare('DELETE FROM candidates WHERE id = ?').run(candidateId);
