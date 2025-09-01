@@ -119,7 +119,7 @@
   </template>
 
  <script setup lang="ts">
-  import { ref, onMounted } from 'vue';
+  import { ref, onMounted, nextTick } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
   import { useToast } from 'vue-toastification';
   import CodeEditor from '../../components/CodeEditor.vue'
@@ -157,7 +157,8 @@
 
   // Funciones API
   const fetchTestById = async (id: any) => {
-    const response = await fetch(`/api/tests/${id}`);
+    const response = await fetch(`http://localhost:4000/api/tests/${id}`); // ← Solo esta línea
+   
     if (!response.ok) throw new Error('Error al cargar la prueba');
     return response.json();
   };
@@ -178,67 +179,104 @@
     return response.json();
   };
 
-  // Cargar los datos de la prueba
+  // Cargar los datos de la prueba  
+  let isLoadingData = false;
   const fetchTest = async () => {
+    if (isLoadingData) return; // Prevenir múltiples llamadas
+    isLoadingData = true;
+
     try {
       loading.value = true;
       error.value = '';
       const test = await fetchTestById(testId);
 
       // Mapear los datos de la API al formato del formulario
-      formData.value = {
-        name: test.name,
+      const mappedData = {
+        name: test.name || '',
         description: test.description || '',
-        timeLimit: test.time_limit,
-        isActive: test.is_active,
+        timeLimit: test.time_limit || 60,
+        isActive: Boolean(test.is_active),
         questions: test.questions?.map((q: any) => {
-          const baseQuestion = {
-            text: q.title || q.text,
-            type: q.type === 'programming' ? 'code' : q.type,
-            language: q.language || 'javascript',
-            solution: q.solution || '',
-            sampleAnswer: q.sample_answer || ''
-          };
+          // Estructura base para TODAS las preguntas
 
-          if (q.type === 'multiple_choice') {
-            let options;
-            try {
-              options = typeof q.options === 'string' ? JSON.parse(q.options) : q.options;
-            } catch {
-              options = [{ text: '', correct: true }, { text: '', correct: false }];
-            }
 
-            return {
-              ...baseQuestion,
-              options: options.map((opt: any) => ({
-                text: opt.text || opt,
-                isCorrect: opt.correct || false
-              }))
-            };
+       const baseQuestion = {
+        // ✅ Campos que QuestionEditor USA:
+        title: q.title || '',                    // v-model="questionData.title"
+        description: q.description || '',        // v-model="questionData.description"
+        difficulty: q.difficulty || 'Fácil',     // v-model="questionData.difficulty"
+        max_score: q.max_score || 10,           // v-model="questionData.max_score"
+        type: q.type || 'programming',          // Usado en v-if
+        language: q.language || 'javascript',   // v-model="questionData.language"
+
+        // ✅ Campos específicos por tipo:
+        initial_code: q.initial_code || '',     // v-model="questionData.initial_code"
+        expected_solution: q.solution || q.correct_answer || q.initial_code || '',
+        database_schema: q.database_schema || '', // v-model="questionData.database_schema"
+        correct_answer: q.correct_answer || '',  // v-model="questionData.correct_answer"
+       test_cases: Array.isArray(q.test_cases) ? q.test_cases.filter((tc, index) =>
+      // Tomar solo los primeros 4 casos válidos
+        index < 4 && tc.name && tc.expected_output
+    ) : [],
+
+        // ✅ Para multiple_choice:
+        options: q.type === 'multiple_choice' ? (
+          typeof q.options === 'string' && q.options.trim() ?
+          JSON.parse(q.options) :
+          [
+            { text: '', correct: false },
+            { text: '', correct: false },
+            { text: '', correct: false },
+            { text: '', correct: false }
+          ]
+        ) : []
+      };
+
+          // Ajustar opciones para QuestionEditor
+          if (q.type === 'multiple_choice' && Array.isArray(baseQuestion.options)) {
+            baseQuestion.options = baseQuestion.options.map((opt: any, idx: number) => ({
+              text: opt.text || '',
+              isCorrect: opt.correct || (q.correct_option_index === idx)
+            }));
           }
 
           return baseQuestion;
-        }) || [
-          {
-            text: '',
-            type: 'multiple_choice',
-            options: [
-              { text: '', isCorrect: true },
-              { text: '', isCorrect: false }
-            ],
-            language: 'javascript',
-            solution: '',
-            sampleAnswer: ''
-          }
-        ]
+        }) || []
       };
+
+
+      
+      // Asignar una sola vez
+      console.log('🔍 MAPPED DATA ANTES DE ASIGNAR:', mappedData);
+      console.log('🔍 FORM DATA ANTES:', formData.value);
+
+      
+      formData.value = mappedData;  // Cambiar a asignación directa
+      
+      console.log('🔍 FORM DATA DESPUÉS:', formData.value);
+      console.log('🔍 PRIMERA PREGUNTA COMPLETA:', JSON.stringify(formData.value.questions[0], null, 2));
+      console.log('🔍 ¿TIENE SOLUTION?:', formData.value.questions[0].solution);
+      console.log('🔍 ¿TIENE TESTCASES?:', formData.value.questions[0].testCases);
+
     } catch (err) {
-      console.error('Error al cargar la prueba:', err);
-      error.value = 'No se pudo cargar la información de la prueba. Inténtalo de nuevo más tarde.';
+      console.error('❌ ERROR COMPLETO:', err);
+      console.error('❌ ERROR STACK:', err.stack);
+      console.error('❌ ERROR MESSAGE:', err.message);
+      console.error('❌ ERROR NAME:', err.name);
+      
+      // FORZAR EL ERROR PARA QUE SE VEA
+      setTimeout(() => {
+        throw err;
+      }, 100);
+      
+      error.value = 'No se pudo cargar la información de la prueba.';
     } finally {
       loading.value = false;
+      isLoadingData = false;
     }
   };
+
+
 
   // Manejar el envío del formulario
   const handleSubmit = async () => {
@@ -294,7 +332,7 @@
         questions: formData.value.questions.map(q => {
           const baseQuestion = {
             title: q.text,
-            type: q.type === 'code' ? 'programming' : q.type,
+            type: q.type,  // ← Mantener el tipo original
             language: q.language,
             solution: q.solution,
             sample_answer: q.sampleAnswer
@@ -376,7 +414,8 @@
   };
 
   // Cargar los datos de la prueba al montar el componente
-  onMounted(() => {
+  onMounted(async () => {
+    await nextTick();
     fetchTest();
   });
   </script>
