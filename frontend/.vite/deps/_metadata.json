@@ -1,49 +1,49 @@
 {
-  "hash": "0aa6bfe5",
+  "hash": "8959bc48",
   "configHash": "51590c1f",
-  "lockfileHash": "b3a5d331",
-  "browserHash": "41d50b2b",
+  "lockfileHash": "b3cbbf95",
+  "browserHash": "0fcec3c6",
   "optimized": {
     "vue": {
       "src": "../../node_modules/vue/dist/vue.runtime.esm-bundler.js",
       "file": "vue.js",
-      "fileHash": "06a810b3",
+      "fileHash": "8d597ecc",
       "needsInterop": false
     },
     "vue-router": {
       "src": "../../node_modules/vue-router/dist/vue-router.mjs",
       "file": "vue-router.js",
-      "fileHash": "fecc3ba5",
+      "fileHash": "b2e27fb1",
       "needsInterop": false
     },
     "pinia": {
       "src": "../../node_modules/pinia/dist/pinia.mjs",
       "file": "pinia.js",
-      "fileHash": "d391682a",
+      "fileHash": "a6db5c42",
       "needsInterop": false
     },
     "axios": {
       "src": "../../node_modules/axios/index.js",
       "file": "axios.js",
-      "fileHash": "9d7fb183",
+      "fileHash": "451863b8",
       "needsInterop": false
     },
     "chart.js": {
       "src": "../../node_modules/chart.js/dist/chart.js",
       "file": "chart__js.js",
-      "fileHash": "834901e2",
+      "fileHash": "376cdc73",
       "needsInterop": false
     },
     "vue-toastification": {
       "src": "../../node_modules/vue-toastification/dist/index.mjs",
       "file": "vue-toastification.js",
-      "fileHash": "f635b34c",
+      "fileHash": "99ac4db2",
       "needsInterop": false
     }
   },
   "chunks": {
-    "chunk-5QRJQEQG": {
-      "file": "chunk-5QRJQEQG.js"
+    "chunk-NQSZK6FG": {
+      "file": "chunk-NQSZK6FG.js"
     },
     "chunk-UVKRO5ER": {
       "file": "chunk-UVKRO5ER.js"

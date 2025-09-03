@@ -40,12 +40,13 @@ router.get('/:id', (req, res) => {
 
     // Get questions for this test
     const questionsQuery = `
-      SELECT q.*, c.name as category_name, c.color as category_color
-      FROM questions q
-      LEFT JOIN categories c ON q.category_id = c.id
-      WHERE q.test_id = ?
-      ORDER BY q.order_index
-    `;
+    SELECT q.*, c.name as category_name, c.color as category_color
+    FROM questions q
+    LEFT JOIN categories c ON q.category_id = c.id
+    WHERE q.test_id = ? 
+      AND q.id IN (1,2,3,4,5)
+    ORDER BY q.order_index
+  `;
 
     const questions = db.prepare(questionsQuery).all(testId);
 
@@ -217,90 +218,6 @@ router.post('/questions', (req, res) => {
   }
 });
 
-// Update existing test
-router.put('/:id', (req, res) => {
-  try {
-    const testId = parseInt(req.params.id);
-    const { name, description, time_limit, is_active, questions } = req.body;
-    
-    // Check if test exists
-    const existingTest = db.prepare('SELECT * FROM tests WHERE id = ?').get(testId);
-    
-    if (!existingTest) {
-      return res.status(404).json({ error: 'Prueba no encontrada' });
-    }
-
-    // Update test data
-    const updateQuery = `
-      UPDATE tests 
-      SET name = ?, description = ?, time_limit = ?, is_active = ?, updated_at = ?
-      WHERE id = ?
-    `;
-    
-    const timestamp = new Date().toISOString();
-    const values = [
-      name || existingTest.name,
-      description !== undefined ? description : existingTest.description,
-      time_limit || existingTest.time_limit,
-      is_active !== undefined ? (is_active ? 1 : 0) : existingTest.is_active,
-      timestamp,
-      testId
-    ];
-
-    db.prepare(updateQuery).run(...values);
-
-    // Handle questions update if provided
-    if (questions && Array.isArray(questions)) {
-      // Start transaction for questions update
-      const transaction = db.transaction(() => {
-        // Remove existing questions and test cases for this test
-        db.prepare('DELETE FROM test_cases WHERE question_id IN (SELECT id FROM questions WHERE test_id = ?)').run(testId);
-        db.prepare('DELETE FROM questions WHERE test_id = ?').run(testId);
-        
-        // Add updated questions
-        const questionQuery = `
-          INSERT INTO questions (test_id, category_id, family_id, type, title, description, difficulty, max_score, order_index, initial_code, language, database_schema, options, correct_answer, execution_timeout, allow_partial_credit, show_expected_output, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        
-        const insertQuestion = db.prepare(questionQuery);
-        
-        questions.forEach((question, index) => {
-          const questionValues = [
-            testId,
-            1,
-            1,
-            question.type,
-            question.title,
-            question.description || '',
-            'Medio',
-            10,
-            index + 1,
-            '',
-            question.language || 'javascript',
-            '',
-            typeof question.options === 'object' ? JSON.stringify(question.options) : (question.options || ''),
-            question.correct_option_index !== undefined ? question.correct_option_index.toString() : '',
-            5000,
-            1,
-            0,
-            timestamp
-          ];
-          
-          insertQuestion.run(...questionValues);
-        });
-      });
-      
-      transaction();
-    }
-
-    res.json({ message: 'Prueba actualizada correctamente' });
-  } catch (error) {
-    console.error('Error al actualizar prueba:', error);
-    res.status(500).json({ error: 'Error al actualizar prueba' });
-  }
-});
-
 // Delete existing test
 router.delete('/:id', (req, res) => {
   try {
@@ -392,20 +309,23 @@ router.post('/test-cases', (req, res) => {
   }
 });
 
-// Update existing test
+// Update existing test - CORREGIDO COMPLETAMENTE
 router.put('/:id', (req, res) => {
   try {
     const testId = parseInt(req.params.id);
     const { name, description, time_limit, passing_score, is_active, questions } = req.body;
     
-    // Check if test exists
+    console.log(`🔄 Iniciando actualización de test ${testId}`);
+    console.log(`📝 Datos recibidos:`, { name, description, time_limit, questionsCount: questions?.length });
+    
+    // Verificar que la prueba existe
     const existingTest = db.prepare('SELECT * FROM tests WHERE id = ?').get(testId);
     
     if (!existingTest) {
       return res.status(404).json({ error: 'Prueba no encontrada' });
     }
 
-    // Update test basic data
+    // Actualizar datos básicos de la prueba
     const updateTestQuery = `
       UPDATE tests 
       SET name = ?, description = ?, time_limit = ?, passing_score = ?, is_active = ?, updated_at = ?
@@ -424,75 +344,176 @@ router.put('/:id', (req, res) => {
     ];
 
     db.prepare(updateTestQuery).run(...testValues);
+    console.log(`✅ Datos básicos de la prueba actualizados`);
 
-    // Handle questions update if provided
+    // Manejar actualización de preguntas si se proporcionan
     if (questions && Array.isArray(questions)) {
-      // Delete existing test_cases and questions for this test
-      db.prepare('DELETE FROM test_cases WHERE question_id IN (SELECT id FROM questions WHERE test_id = ?)').run(testId);
-      db.prepare('DELETE FROM questions WHERE test_id = ?').run(testId);
+      console.log(`🔍 Procesando ${questions.length} preguntas para test ${testId}`);
+
+      // Obtener preguntas existentes - CORREGIDO: usar ID, no order_index
+      const existingQuestions = db.prepare('SELECT * FROM questions WHERE test_id = ? ORDER BY id').all(testId);
+      console.log(`📚 Preguntas existentes encontradas: ${existingQuestions.length}`);
       
-      // Insert updated questions
-      const questionQuery = `
-        INSERT INTO questions (test_id, category_id, family_id, type, title, description, difficulty, max_score, order_index, initial_code, language, database_schema, options, correct_answer, execution_timeout, allow_partial_credit, show_expected_output, created_at)
+      // Crear mapa por ID de pregunta, no por order_index
+      const existingQuestionsMap = new Map(existingQuestions.map(q => [q.id, q]));
+
+      // Queries preparadas
+      const updateQuestionQuery = `
+        UPDATE questions 
+        SET title = ?, description = ?, type = ?, difficulty = ?, max_score = ?, 
+            language = ?, initial_code = ?, database_schema = ?, options = ?, 
+            correct_answer = ?, execution_timeout = ?, order_index = ?
+        WHERE id = ?
+      `;
+
+      const insertQuestionQuery = `
+        INSERT INTO questions (test_id, category_id, family_id, type, title, description, 
+                             difficulty, max_score, order_index, initial_code, language, 
+                             database_schema, options, correct_answer, execution_timeout, 
+                             allow_partial_credit, show_expected_output, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
-      
-      const insertQuestion = db.prepare(questionQuery);
-      
+
+      const updateQuestion = db.prepare(updateQuestionQuery);
+      const insertQuestion = db.prepare(insertQuestionQuery);
+
+      // Procesar cada pregunta del frontend
       questions.forEach((question, index) => {
-        const questionValues = [
-          testId,
-          1, // category_id
-          1, // family_id
-          question.type || 'programming',
-          question.title,
+        const orderIndex = index + 1;
+        
+        // Buscar pregunta existente por ID si se proporciona
+        let existingQuestion = null;
+        if (question.id) {
+          existingQuestion = existingQuestionsMap.get(parseInt(question.id));
+        } else if (index < existingQuestions.length) {
+          // Si no hay ID, tomar la pregunta en la misma posición
+          existingQuestion = existingQuestions[index];
+        }
+
+        console.log(`📝 Procesando pregunta ${index + 1}: "${question.title?.substring(0, 50)}..."`);
+
+        // Preparar valores comunes
+        const commonValues = [
+          question.title || '',
           question.description || '',
+          question.type || 'programming',
           question.difficulty || 'Medio',
           question.max_score || 10,
-          index + 1,
-          question.initial_code || '',
           question.language || 'javascript',
+          question.initial_code || '',
           question.database_schema || '',
           question.options ? JSON.stringify(question.options) : null,
-          question.correct_answer || question.expected_solution || '',
-          question.execution_timeout || 5000,
-          1, // allow_partial_credit
-          0, // show_expected_output
-          timestamp
+          question.expected_solution || question.correct_answer || '', // MAPEO CORRECTO
+          question.execution_timeout || 5000
         ];
-        
-        const questionResult = db.prepare(questionQuery).run(...questionValues);
-        
-        // Insert test cases for this question
+
+        let questionId;
+
+        if (existingQuestion) {
+          // ACTUALIZAR pregunta existente
+          console.log(`🔄 Actualizando pregunta existente ID ${existingQuestion.id}`);
+          updateQuestion.run(...commonValues, orderIndex, existingQuestion.id);
+          questionId = existingQuestion.id;
+        } else {
+          // CREAR nueva pregunta
+          console.log(`✨ Creando nueva pregunta en posición ${orderIndex}`);
+          const insertValues = [
+            testId,
+            1, // category_id
+            1, // family_id
+            ...commonValues,
+            orderIndex,
+            1, // allow_partial_credit
+            0, // show_expected_output
+            timestamp
+          ];
+          
+          const result = insertQuestion.run(...insertValues);
+          questionId = result.lastInsertRowid;
+          console.log(`✅ Nueva pregunta creada con ID ${questionId}`);
+        }
+
+        // MANEJAR TEST CASES - Actualizar o crear
         if (question.test_cases && Array.isArray(question.test_cases) && question.test_cases.length > 0) {
-          const testCaseQuery = `
+          console.log(`🧪 Procesando ${question.test_cases.length} casos de prueba para pregunta ${questionId}`);
+          
+          // Obtener test cases existentes
+          const existingTestCases = db.prepare('SELECT * FROM test_cases WHERE question_id = ? ORDER BY id').all(questionId);
+          
+          // Queries para test cases
+          const updateTestCaseQuery = `
+            UPDATE test_cases 
+            SET name = ?, input_data = ?, expected_output = ?, is_hidden = ?, weight = ?, timeout_ms = ?
+            WHERE id = ?
+          `;
+
+          const insertTestCaseQuery = `
             INSERT INTO test_cases (question_id, name, input_data, expected_output, is_hidden, weight, timeout_ms, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           `;
-          
-          const insertTestCase = db.prepare(testCaseQuery);
-          
-          question.test_cases.forEach(testCase => {
+
+          const updateTestCase = db.prepare(updateTestCaseQuery);
+          const insertTestCase = db.prepare(insertTestCaseQuery);
+
+          question.test_cases.forEach((testCase, tcIndex) => {
+            const existingTestCase = existingTestCases[tcIndex];
+
             const testCaseValues = [
-              questionResult.lastInsertRowid,
-              testCase.name || 'Test Case',
+              testCase.name || `Caso ${tcIndex + 1}`,
               testCase.input_data || '',
               testCase.expected_output || '',
               testCase.is_hidden ? 1 : 0,
               testCase.weight || 1.0,
-              testCase.timeout_ms || 5000,
-              timestamp
+              testCase.timeout_ms || 5000
             ];
-            
-            insertTestCase.run(...testCaseValues);
+
+            if (existingTestCase) {
+              // ACTUALIZAR test case existente
+              console.log(`🔄 Actualizando test case ID ${existingTestCase.id}`);
+              updateTestCase.run(...testCaseValues, existingTestCase.id);
+            } else {
+              // CREAR nuevo test case
+              console.log(`✨ Creando nuevo test case para pregunta ${questionId}`);
+              const insertValues = [questionId, ...testCaseValues, timestamp];
+              insertTestCase.run(...insertValues);
+            }
           });
+
+          // ELIMINAR test cases sobrantes si existen más que los enviados
+          if (existingTestCases.length > question.test_cases.length) {
+            const testCasesToDelete = existingTestCases.slice(question.test_cases.length);
+            const deleteTestCaseQuery = db.prepare('DELETE FROM test_cases WHERE id = ?');
+            testCasesToDelete.forEach(tc => {
+              console.log(`🗑️ Eliminando test case sobrante ID ${tc.id}`);
+              deleteTestCaseQuery.run(tc.id);
+            });
+          }
         }
       });
+
+      // ELIMINAR preguntas sobrantes si existen más que las enviadas
+      if (existingQuestions.length > questions.length) {
+        const questionsToDelete = existingQuestions.slice(questions.length);
+        const deleteTestCasesQuery = db.prepare('DELETE FROM test_cases WHERE question_id = ?');
+        const deleteQuestionQuery = db.prepare('DELETE FROM questions WHERE id = ?');
+        
+        questionsToDelete.forEach(q => {
+          console.log(`🗑️ Eliminando pregunta sobrante ID ${q.id}`);
+          deleteTestCasesQuery.run(q.id);
+          deleteQuestionQuery.run(q.id);
+        });
+      }
     }
 
-    res.json({ message: 'Prueba actualizada exitosamente', testId });
+    console.log(`✅ Prueba ${testId} actualizada exitosamente`);
+    res.json({ 
+      message: 'Prueba actualizada exitosamente', 
+      testId,
+      updatedQuestions: questions ? questions.length : 0
+    });
+
   } catch (error) {
-    console.error('Error al actualizar prueba:', error);
+    console.error('❌ Error al actualizar prueba:', error);
     res.status(500).json({ error: 'Error al actualizar prueba' });
   }
 });

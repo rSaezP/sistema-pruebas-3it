@@ -118,12 +118,51 @@
     </div>
   </template>
 
- <script setup lang="ts">
+  <script setup lang="ts">
   import { ref, onMounted, nextTick } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
   import { useToast } from 'vue-toastification';
   import CodeEditor from '../../components/CodeEditor.vue'
   import QuestionEditor from '../../components/QuestionEditor.vue';
+
+  // Definir interfaces para TypeScript
+  interface TestCase {
+    id: string;
+    name: string;
+    input_data: string;
+    expected_output: string;
+    is_hidden: boolean;
+    weight: number;
+    timeout_ms: number;
+  }
+
+  interface Option {
+    text: string;
+    correct: boolean;
+  }
+
+  interface Question {
+    title: string;
+    description: string;
+    type: string;
+    difficulty: string;
+    max_score: number;
+    language: string;
+    initial_code: string;
+    expected_solution: string;
+    database_schema: string;
+    correct_answer: string;
+    test_cases: TestCase[];
+    options: Option[];
+  }
+
+  interface FormData {
+    name: string;
+    description: string;
+    timeLimit: number;
+    isActive: boolean;
+    questions: Question[];
+  }
 
   const route = useRoute();
   const router = useRouter();
@@ -134,31 +173,18 @@
   const error = ref('');
   const isSubmitting = ref(false);
 
-  // Datos del formulario
-  const formData = ref({
+  // Datos del formulario con tipado correcto
+  const formData = ref<FormData>({
     name: '',
     description: '',
     timeLimit: 60,
     isActive: true,
-    questions: [
-      {
-        text: '',
-        type: 'multiple_choice',
-        options: [
-          { text: '', isCorrect: true },
-          { text: '', isCorrect: false }
-        ],
-        language: 'javascript',
-        solution: '',
-        sampleAnswer: ''
-      }
-    ]
+    questions: []
   });
 
   // Funciones API
   const fetchTestById = async (id: any) => {
-    const response = await fetch(`http://localhost:4000/api/tests/${id}`); // ← Solo esta línea
-   
+    const response = await fetch(`http://localhost:4000/api/tests/${id}`);
     if (!response.ok) throw new Error('Error al cargar la prueba');
     return response.json();
   };
@@ -179,10 +205,15 @@
     return response.json();
   };
 
-  // Cargar los datos de la prueba  
+  // Función para generar UUID simple
+  const generateId = () => {
+    return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+  };
+
+  // ÚNICA función fetchTest
   let isLoadingData = false;
   const fetchTest = async () => {
-    if (isLoadingData) return; // Prevenir múltiples llamadas
+    if (isLoadingData) return;
     isLoadingData = true;
 
     try {
@@ -190,85 +221,86 @@
       error.value = '';
       const test = await fetchTestById(testId);
 
-      // Mapear los datos de la API al formato del formulario
-      const mappedData = {
+      const mappedData: FormData = {
         name: test.name || '',
         description: test.description || '',
         timeLimit: test.time_limit || 60,
         isActive: Boolean(test.is_active),
-        questions: test.questions?.map((q: any) => {
-          // Estructura base para TODAS las preguntas
+        questions: (test.questions || []).map((q: any): Question => {
+          const baseQuestion: Question = {
+            // Campos que QuestionEditor espera
+            title: q.title || '',
+            description: q.description || '',
+            difficulty: q.difficulty || 'Fácil',
+            max_score: q.max_score || 10,
+            type: q.type || 'programming',
+            language: q.language || 'javascript',
 
+            // MAPEO CORREGIDO: Backend → Frontend
+            initial_code: q.initial_code || '',
+            expected_solution: q.type === 'sql' ? q.correct_answer : q.initial_code || '', // CORREGIDO
+            database_schema: q.database_schema || '',
+            correct_answer: q.correct_answer || '', // Para referencia
 
-       const baseQuestion = {
-        // ✅ Campos que QuestionEditor USA:
-        title: q.title || '',                    // v-model="questionData.title"
-        description: q.description || '',        // v-model="questionData.description"
-        difficulty: q.difficulty || 'Fácil',     // v-model="questionData.difficulty"
-        max_score: q.max_score || 10,           // v-model="questionData.max_score"
-        type: q.type || 'programming',          // Usado en v-if
-        language: q.language || 'javascript',   // v-model="questionData.language"
+            // Test cases con estructura completa
+            test_cases: (q.test_cases || []).map((tc: any, index: number): TestCase => ({
+              id: tc.id || generateId(),
+              name: tc.name || `Caso ${index + 1}`,
+              input_data: tc.input_data || '',
+              expected_output: tc.expected_output || '',
+              is_hidden: Boolean(tc.is_hidden),
+              weight: tc.weight || 1.0,
+              timeout_ms: tc.timeout_ms || 5000
+            })),
 
-        // ✅ Campos específicos por tipo:
-        initial_code: q.initial_code || '',     // v-model="questionData.initial_code"
-        expected_solution: q.solution || q.correct_answer || q.initial_code || '',
-        database_schema: q.database_schema || '', // v-model="questionData.database_schema"
-        correct_answer: q.correct_answer || '',  // v-model="questionData.correct_answer"
-       test_cases: Array.isArray(q.test_cases) ? q.test_cases.filter((tc, index) =>
-      // Tomar solo los primeros 4 casos válidos
-        index < 4 && tc.name && tc.expected_output
-    ) : [],
+            // Multiple choice options
+            options: q.type === 'multiple_choice' ? (
+              typeof q.options === 'string' && q.options.trim() ?
+              JSON.parse(q.options).map((opt: any, idx: number): Option => ({
+                text: opt.text || '',
+                correct: opt.correct || (q.correct_option_index === idx)
+              })) :
+              [
+                { text: '', correct: false },
+                { text: '', correct: false },
+                { text: '', correct: false },
+                { text: '', correct: false }
+              ]
+            ) : []
+          };
 
-        // ✅ Para multiple_choice:
-        options: q.type === 'multiple_choice' ? (
-          typeof q.options === 'string' && q.options.trim() ?
-          JSON.parse(q.options) :
-          [
-            { text: '', correct: false },
-            { text: '', correct: false },
-            { text: '', correct: false },
-            { text: '', correct: false }
-          ]
-        ) : []
-      };
-
-          // Ajustar opciones para QuestionEditor
-          if (q.type === 'multiple_choice' && Array.isArray(baseQuestion.options)) {
-            baseQuestion.options = baseQuestion.options.map((opt: any, idx: number) => ({
-              text: opt.text || '',
-              isCorrect: opt.correct || (q.correct_option_index === idx)
-            }));
+          // Si no hay test_cases para programación/SQL, crear uno por defecto
+          if ((baseQuestion.type === 'programming' || baseQuestion.type === 'sql') && 
+              baseQuestion.test_cases.length === 0) {
+            baseQuestion.test_cases = [{
+              id: generateId(),
+              name: 'Caso 1',
+              input_data: '',
+              expected_output: '',
+              is_hidden: false,
+              weight: 1.0,
+              timeout_ms: 5000
+            }];
           }
 
           return baseQuestion;
-        }) || []
+        })
       };
 
-
+      formData.value = mappedData;
       
-      // Asignar una sola vez
-      console.log('🔍 MAPPED DATA ANTES DE ASIGNAR:', mappedData);
-      console.log('🔍 FORM DATA ANTES:', formData.value);
-
-      
-      formData.value = mappedData;  // Cambiar a asignación directa
-      
-      console.log('🔍 FORM DATA DESPUÉS:', formData.value);
-      console.log('🔍 PRIMERA PREGUNTA COMPLETA:', JSON.stringify(formData.value.questions[0], null, 2));
-      console.log('🔍 ¿TIENE SOLUTION?:', formData.value.questions[0].solution);
-      console.log('🔍 ¿TIENE TESTCASES?:', formData.value.questions[0].testCases);
+      console.log('Prueba cargada:', {
+        preguntas: formData.value.questions.length,
+        primeraPregunta: {
+          titulo: formData.value.questions[0]?.title,
+          tieneSolucion: Boolean(formData.value.questions[0]?.expected_solution),
+          testCases: formData.value.questions[0]?.test_cases?.length || 0,
+          solucionContent: formData.value.questions[0]?.expected_solution?.substring(0, 50) + '...'
+        }
+      });
 
     } catch (err) {
-      console.error('❌ ERROR COMPLETO:', err);
-      console.error('❌ ERROR STACK:', err.stack);
-      console.error('❌ ERROR MESSAGE:', err.message);
-      console.error('❌ ERROR NAME:', err.name);
-      
-      // FORZAR EL ERROR PARA QUE SE VEA
-      setTimeout(() => {
-        throw err;
-      }, 100);
-      
+      console.error('Error cargando prueba:', err);
       error.value = 'No se pudo cargar la información de la prueba.';
     } finally {
       loading.value = false;
@@ -276,87 +308,118 @@
     }
   };
 
-
-
-  // Manejar el envío del formulario
+  // ÚNICA función handleSubmit
   const handleSubmit = async () => {
     if (isSubmitting.value) return;
 
     try {
       isSubmitting.value = true;
 
-      // Validar que al menos haya una pregunta
+      // Validaciones
       if (formData.value.questions.length === 0) {
         toast.error('Debe haber al menos una pregunta en la prueba');
-        isSubmitting.value = false;
         return;
       }
 
-      // Validar cada pregunta
       for (const [index, question] of formData.value.questions.entries()) {
-        if (!question.text.trim()) {
-          toast.error(`La pregunta ${index + 1} no puede estar vacía`);
-          isSubmitting.value = false;
+        if (!question.title?.trim()) {
+          toast.error(`La pregunta ${index + 1} debe tener un título`);
+          return;
+        }
+
+        if (!question.description?.trim()) {
+          toast.error(`La pregunta ${index + 1} debe tener una descripción`);
           return;
         }
 
         if (question.type === 'multiple_choice') {
-          const hasEmptyOption = question.options.some(opt => !opt.text.trim());
+          const hasEmptyOption = question.options?.some(opt => !opt.text?.trim());
           if (hasEmptyOption) {
             toast.error(`Todas las opciones de la pregunta ${index + 1} deben tener texto`);
-            isSubmitting.value = false;
             return;
           }
 
-          const hasCorrectAnswer = question.options.some(opt => opt.isCorrect);
+          const hasCorrectAnswer = question.options?.some(opt => opt.correct);
           if (!hasCorrectAnswer) {
             toast.error(`Debe seleccionar la respuesta correcta para la pregunta ${index + 1}`);
-            isSubmitting.value = false;
             return;
           }
         }
 
-        if (question.type === 'code' && !question.solution.trim()) {
-          toast.error(`Debe proporcionar una solución para la pregunta de código ${index + 1}`);
-          isSubmitting.value = false;
+        // Validación para preguntas de programación y SQL
+        if ((question.type === 'programming' || question.type === 'sql') && 
+            !question.expected_solution?.trim()) {
+          toast.error(`Debe proporcionar una solución para la pregunta ${index + 1}`);
           return;
+        }
+
+        // Validación de test cases para programación y SQL
+        if ((question.type === 'programming' || question.type === 'sql')) {
+          if (!question.test_cases || question.test_cases.length === 0) {
+            toast.error(`La pregunta ${index + 1} debe tener al menos un caso de prueba`);
+            return;
+          }
+
+          // Validar que los test cases tengan datos
+          for (const [tcIndex, testCase] of question.test_cases.entries()) {
+            if (!testCase.expected_output?.trim()) {
+              toast.error(`El caso de prueba ${tcIndex + 1} de la pregunta ${index + 1} debe tener un resultado esperado`);
+              return;
+            }
+          }
         }
       }
 
-      // Preparar datos para la API
+      // Preparar datos para enviar al backend
       const testData = {
         name: formData.value.name,
         description: formData.value.description,
         time_limit: formData.value.timeLimit,
+        passing_score: 60,
         is_active: formData.value.isActive,
-        questions: formData.value.questions.map(q => {
+        questions: formData.value.questions.map((q, index) => {
           const baseQuestion = {
-            title: q.text,
-            type: q.type,  // ← Mantener el tipo original
-            language: q.language,
-            solution: q.solution,
-            sample_answer: q.sampleAnswer
+            id: q.id || undefined, // Pasar ID si existe para actualización
+            title: q.title,
+            description: q.description,
+            type: q.type,
+            difficulty: q.difficulty || 'Medio',
+            max_score: q.max_score || 10,
+            language: q.language || 'javascript',
+            initial_code: q.initial_code || '',
+            database_schema: q.database_schema || '',
+            // MAPEO CORRECTO: Frontend → Backend
+            expected_solution: q.expected_solution || '', // Enviar lo que el usuario editó
+            execution_timeout: 5000,
+            // Test cases - asegurar formato correcto
+            test_cases: (q.test_cases || []).map(tc => ({
+              id: tc.id, // Mantener ID si existe
+              name: tc.name || 'Caso de prueba',
+              input_data: tc.input_data || '',
+              expected_output: tc.expected_output || '',
+              is_hidden: Boolean(tc.is_hidden),
+              weight: tc.weight || 1.0,
+              timeout_ms: tc.timeout_ms || 5000
+            }))
           };
 
+          // Para multiple choice, agregar opciones
           if (q.type === 'multiple_choice') {
-            return {
-              ...baseQuestion,
-              options: JSON.stringify(q.options.map(opt => ({
-                text: opt.text,
-                correct: opt.isCorrect
-              }))),
-              correct_option_index: q.options.findIndex(opt => opt.isCorrect)
-            };
+            (baseQuestion as any).options = (q.options || []).map(opt => ({
+              text: opt.text || '',
+              correct: Boolean(opt.correct)
+            }));
           }
 
           return baseQuestion;
         })
       };
 
-      // Enviar datos al servidor
+      console.log('Enviando datos al backend:', JSON.stringify(testData, null, 2));
+
+      // Enviar al servidor
       await updateTest(testId, testData);
 
-      // Mostrar mensaje de éxito y redirigir
       toast.success('La prueba se ha actualizado correctamente');
       router.push('/admin/tests');
 
@@ -387,19 +450,37 @@
     router.push('/admin/tests');
   };
 
-  // Añadir nueva pregunta
+  // Añadir nueva pregunta - ESTRUCTURA CORREGIDA con tipos
   const addQuestion = () => {
-    formData.value.questions.push({
-      text: '',
-      type: 'multiple_choice',
-      options: [
-        { text: '', isCorrect: true },
-        { text: '', isCorrect: false }
-      ],
+    const newQuestion: Question = {
+      title: '',
+      description: '',
+      type: 'programming',
+      difficulty: 'Fácil',
+      max_score: 10,
       language: 'javascript',
-      solution: '',
-      sampleAnswer: ''
-    });
+      initial_code: '',
+      expected_solution: '',
+      database_schema: '',
+      correct_answer: '',
+      test_cases: [{
+        id: generateId(),
+        name: 'Caso 1',
+        input_data: '',
+        expected_output: '',
+        is_hidden: false,
+        weight: 1.0,
+        timeout_ms: 5000
+      }],
+      options: [
+        { text: '', correct: false },
+        { text: '', correct: false },
+        { text: '', correct: false },
+        { text: '', correct: false }
+      ]
+    };
+
+    formData.value.questions.push(newQuestion);
   };
 
   // Eliminar pregunta
@@ -409,7 +490,7 @@
     }
   };
 
-  const updateQuestionData = (index: number, questionData: any) => {
+  const updateQuestionData = (index: number, questionData: Question) => {
     formData.value.questions[index] = questionData;
   };
 
@@ -418,7 +499,7 @@
     await nextTick();
     fetchTest();
   });
-  </script>
+</script>
 
  <style scoped>
   .edit-test-container {
