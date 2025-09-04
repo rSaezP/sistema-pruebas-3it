@@ -110,14 +110,7 @@
                   📧
                 </button>
                 
-                <router-link 
-                  v-if="candidate.status === 'completed'"
-                  :to="`/admin/reports/${candidate.sessionId}`"
-                  class="btn-icon"
-                  title="Ver resultados"
-                >
-                  📊
-                </router-link>
+               
                 
                 <button 
                   v-if="candidate.status === 'completed'"

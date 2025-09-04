@@ -2,12 +2,16 @@ import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../database/init.js';
 import crypto from 'crypto';
+import puppeteer from 'puppeteer';
+import fs from 'fs';          // ← AGREGAR ESTA LÍNEA
+import path from 'path';      // ← AGREGAR ESTA LÍNEA
 
 const router = express.Router();
 
 // Get all candidates with their test sessions
 router.get('/', (req, res) => {
   try {
+    
     const candidatesQuery = `
       SELECT c.*,
              COUNT(DISTINCT s.id) as total_tests,
@@ -288,4 +292,605 @@ router.get('/:candidateId/sessions', (req, res) => {
   }
 });
 
-export default router;
+// Generate PDF report for candidate
+router.get('/:id/reports/pdf', async (req, res) => {
+  try {
+    const candidateId = parseInt(req.params.id);
+
+    // Get candidate data with their test session - CORREGIDO: Agregamos ts.id as session_id
+    const candidateQuery = `
+      SELECT c.*, ts.*, t.name as test_name, t.description as test_description,
+            ts.percentage_score, ts.time_spent_seconds, ts.started_at,
+            ts.finished_at, ts.id as session_id
+      FROM candidates c
+      LEFT JOIN test_sessions ts ON c.id = ts.candidate_id
+      LEFT JOIN tests t ON ts.test_id = t.id
+      WHERE c.id = ? AND ts.status = 'completed'
+      ORDER BY ts.created_at DESC
+      LIMIT 1
+    `;
+    const candidate = db.prepare(candidateQuery).get(candidateId);
+    console.log('CANDIDATE DATA:', candidate);
+
+    if (!candidate) {
+      return res.status(404).json({ error: 'Candidato no encontrado o no ha completado ninguna prueba' });
+    }
+
+    // Get answers with question details
+    const answersQuery = `
+      SELECT a.*, q.title, q.description, q.type, q.difficulty, q.max_score as question_max_score,
+            c.name as category_name, a.score
+      FROM answers a
+      JOIN questions q ON a.question_id = q.id
+      LEFT JOIN categories c ON q.category_id = c.id
+      WHERE a.session_id = ?
+      ORDER BY q.order_index
+    `;
+
+    console.log('SESSION ID PARA ANSWERS:', candidate.session_id);
+    let answers;
+    try {
+      console.log('Buscando respuestas para session_id:', candidate.session_id);
+      answers = db.prepare(answersQuery).all(candidate.session_id);
+      console.log('ANSWERS encontradas:', answers.length);
+    } catch (error) {
+      console.error('Error buscando answers:', error.message);
+      answers = [];
+    }
+
+    
+      // HTML QUE COINCIDE EXACTAMENTE CON EL EJEMPLO PDF
+      const generateProfessionalHTML = (candidate, answers) => {
+        // Calcular tiempo total y porcentaje
+        const timeSpentSeconds = candidate.time_spent_seconds || 0;
+        const hours = Math.floor(timeSpentSeconds / 3600);
+        const minutes = Math.floor((timeSpentSeconds % 3600) / 60);
+        const seconds = timeSpentSeconds % 60;
+        const timeTotal = `${hours} Hora${hours !== 1 ? 's' : ''} ${minutes} Minuto${minutes !== 1 ? 's' : ''} ${seconds} Segundo${seconds !== 1 ? 's' : ''}`;
+        
+        const percentageScore = candidate.percentage_score || 0;
+        const totalScore = Math.round((percentageScore / 100) * 60);
+        
+        // Agrupar respuestas por categoría
+        const categoryStats = {};
+        answers.forEach(answer => {
+          const category = answer.category_name || 'Programación';
+          if (!categoryStats[category]) {
+            categoryStats[category] = {
+              name: category,
+              totalScore: 0,
+              maxScore: 0,
+              questions: []
+            };
+          }
+          categoryStats[category].totalScore += answer.score || 0;
+          categoryStats[category].maxScore += answer.question_max_score || 0;
+          categoryStats[category].questions.push(answer);
+        });
+
+        // Formatear fechas como en el ejemplo
+        const formatDate = (dateString) => {
+          if (!dateString) return 'N/A';
+          const date = new Date(dateString);
+          return date.toLocaleDateString('es-ES') + ' ' + date.toLocaleTimeString('es-ES', { hour12: false });
+        };
+
+        return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+      <meta charset="UTF-8">
+      <title>Reporte - ${candidate.name}</title>
+      <style>
+          @page {
+              margin: 0;
+              size: A4;
+          }
+          body { 
+              font-family: Arial, sans-serif; 
+              margin: 0; 
+              padding: 0;
+              background-color: white;
+              font-size: 12px;
+              line-height: 1.4;
+          }
+          .header {
+              background: linear-gradient(90deg, #6366F1 0%, #8B5CF6 100%);
+              color: white;
+              padding: 30px 40px;
+              position: relative;
+              min-height: 120px;
+          }
+          .logo {
+              background-color: black;
+              color: white;
+              padding: 6px 10px;
+              display: inline-block;
+              font-weight: bold;
+              font-size: 14px;
+              margin-bottom: 20px;
+          }
+          .header-content {
+              position: relative;
+          }
+          .header h1 {
+              margin: 0 0 5px 0;
+              font-size: 28px;
+              font-weight: normal;
+          }
+          .header h2 {
+              margin: 0 0 15px 0;
+              font-size: 20px;
+              font-weight: normal;
+          }
+          .datetime {
+              font-size: 14px;
+              margin: 10px 0;
+          }
+          .score-section {
+              position: absolute;
+              right: 40px;
+              top: 50%;
+              transform: translateY(-50%);
+              text-align: center;
+          }
+          .score-label {
+              font-size: 16px;
+              margin-bottom: 10px;
+              font-weight: bold;
+          }
+          .score-number {
+              font-size: 32px;
+              font-weight: bold;
+              margin: 10px 0;
+          }
+          .score-circle {
+              width: 120px;
+              height: 120px;
+              border: 12px solid #4ADE80;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: white;
+              margin: 15px auto 0;
+          }
+          .score-text {
+              font-size: 24px;
+              font-weight: bold;
+              color: #333;
+          }
+          .content {
+              padding: 30px 40px;
+          }
+          .summary-stats {
+              margin: 30px 0;
+              display: flex;
+              gap: 30px;
+              align-items: flex-start;
+          }
+          .summary-left {
+              flex: 1;
+          }
+          .summary-item {
+              margin: 8px 0;
+              font-size: 14px;
+          }
+          .summary-label {
+              font-weight: bold;
+              display: inline-block;
+              min-width: 80px;
+          }
+          .info-section {
+              margin: 40px 0;
+          }
+          .info-grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr 1fr;
+              gap: 40px;
+              background: #F8F9FA;
+              padding: 25px;
+              border-radius: 8px;
+          }
+          .info-item h3 {
+              margin: 0 0 15px 0;
+              font-size: 16px;
+              font-weight: bold;
+              color: #333;
+          }
+          .info-value {
+              margin: 8px 0;
+              font-size: 14px;
+              color: #555;
+          }
+          .info-label {
+              font-weight: bold;
+              color: #333;
+          }
+          .categories-section {
+              margin: 40px 0;
+          }
+          .section-title {
+              font-size: 24px;
+              font-weight: bold;
+              margin: 0 0 20px 0;
+              color: #333;
+          }
+          .categories-header {
+              display: grid;
+              grid-template-columns: 2fr 1fr 1fr;
+              gap: 20px;
+              padding: 10px 0;
+              border-bottom: 2px solid #E5E7EB;
+              font-weight: bold;
+              margin-bottom: 20px;
+          }
+          .category-item {
+              display: grid;
+              grid-template-columns: 2fr 1fr 1fr;
+              gap: 20px;
+              align-items: center;
+              padding: 15px 0;
+              border-left: 4px solid #4ADE80;
+              padding-left: 15px;
+              margin: 15px 0;
+              background: #F8F9FA;
+          }
+          .category-name {
+              font-weight: bold;
+              font-size: 14px;
+          }
+          .category-result {
+              font-size: 12px;
+              color: #666;
+          }
+          .category-score-box {
+              background: #3B82F6;
+              color: white;
+              padding: 8px 15px;
+              border-radius: 4px;
+              font-weight: bold;
+              text-align: center;
+              font-size: 14px;
+          }
+          .legend-section {
+              display: flex;
+              justify-content: center;
+              gap: 30px;
+              margin: 30px 0;
+          }
+          .legend-item {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              font-size: 12px;
+          }
+          .legend-color {
+              width: 16px;
+              height: 16px;
+              border-radius: 3px;
+          }
+          .legend-green { background-color: #4ADE80; }
+          .legend-orange { background-color: #FB923C; }
+          .legend-red { background-color: #EF4444; }
+          .questions-section {
+              margin: 40px 0;
+          }
+          .questions-header {
+              display: grid;
+              grid-template-columns: 3fr 1fr 1fr 1fr;
+              gap: 20px;
+              padding: 10px 0;
+              border-bottom: 2px solid #E5E7EB;
+              font-weight: bold;
+              margin-bottom: 20px;
+          }
+          .question-item {
+              margin: 20px 0;
+              padding: 20px;
+              border-left: 4px solid #4ADE80;
+              background: #F8F9FA;
+              border-radius: 0 8px 8px 0;
+          }
+          .question-header-row {
+              display: grid;
+              grid-template-columns: 3fr 1fr 1fr 1fr;
+              gap: 20px;
+              align-items: center;
+              margin-bottom: 15px;
+          }
+          .question-title {
+              font-weight: bold;
+              font-size: 14px;
+              color: #333;
+          }
+          .question-category {
+              text-align: center;
+              font-size: 12px;
+              color: #666;
+          }
+          .question-difficulty {
+              text-align: center;
+              font-size: 12px;
+              padding: 4px 8px;
+              border-radius: 12px;
+              background: #E0F2FE;
+              color: #0369A1;
+          }
+          .question-score {
+              text-align: center;
+              font-weight: bold;
+              font-size: 14px;
+          }
+          .question-description {
+              margin-top: 15px;
+              padding-top: 15px;
+              border-top: 1px solid #E5E7EB;
+              font-size: 12px;
+              line-height: 1.6;
+              color: #555;
+          }
+          .bottom-legend {
+              display: flex;
+              justify-content: center;
+              gap: 25px;
+              margin: 30px 0;
+              padding: 20px 0;
+              border-top: 1px solid #E5E7EB;
+          }
+          .bottom-legend-item {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              font-size: 12px;
+          }
+          .bottom-legend-color {
+              width: 16px;
+              height: 16px;
+              border-radius: 3px;
+          }
+          .legend-gray { background-color: #9CA3AF; }
+          .legend-yellow { background-color: #FCD34D; }
+          .candidate-answer {
+              margin-top: 15px;
+              padding: 15px;
+              background: #F8FAFC;
+              border-radius: 8px;
+              border-left: 3px solid #3B82F6;
+          }
+          .candidate-answer strong {
+              color: #1E40AF;
+              display: block;
+              margin-bottom: 10px;
+          }
+      </style>
+  </head>
+  <body>
+      <div class="header">
+          <div class="header-content">
+              <div class="logo">3IT</div>
+              <h1>${candidate.test_name || 'Team Eureka 3it'}</h1>
+              <h2>${candidate.name} ${candidate.lastname || ''}</h2>
+              <div class="datetime">
+                  Fecha Inicio: ${formatDate(candidate.started_at)} Fecha Fin: ${formatDate(candidate.finished_at)}
+              </div>
+              <div class="score-section">
+                  <div class="score-label">Puntaje Total:</div>
+                  <div class="score-number">${totalScore}/60</div>
+                  <div class="score-circle">
+                      <div class="score-text">${Math.round(percentageScore)}%</div>
+                  </div>
+              </div>
+          </div>
+      </div>
+
+      <div class="content">
+          <div class="summary-stats">
+              <div class="summary-left">
+                  <div class="summary-item">
+                      <span class="summary-label">Tiempo Total:</span> ${timeTotal}
+                  </div>
+                  <div class="summary-item">
+                      <span class="summary-label">Percentil:</span> ${Math.round(percentageScore)}%
+                  </div>
+              </div>
+          </div>
+
+          <div class="info-section">
+              <div class="info-grid">
+                  <div class="info-item">
+                      <h3>Información Candidato</h3>
+                      <div class="info-value"><span class="info-label">Id:</span> ${candidate.id}</div>
+                      <div class="info-value"><span class="info-label">Nombre:</span> ${candidate.name} ${candidate.lastname || ''}</div>
+                      ${candidate.email ? `<div class="info-value"><span class="info-label">Email:</span> ${candidate.email}</div>` : ''}
+                  </div>
+                  <div class="info-item">
+                      <h3>Información Prueba</h3>
+                      <div class="info-value"><span class="info-label">Nombre/ID:</span> ${candidate.test_name || 'Team Eureka 3it'}</div>
+                      <div class="info-value"><span class="info-label">Descripción:</span> ${candidate.test_description || 'Prueba técnica diseñada para los postulantes al Team Eureka.'}</div>
+                  </div>
+                  <div class="info-item">
+                      <h3>Información Instancia</h3>
+                      <div class="info-value"><span class="info-label">Tiempo Límite:</span> ${candidate.time_limit_minutes || 120} minutos</div>
+                      <div class="info-value"><span class="info-label">Tipo:</span> TST</div>
+                  </div>
+              </div>
+          </div>
+
+          <div class="categories-section">
+              <h2 class="section-title">Resumen por Categoría</h2>
+              <div class="categories-header">
+                  <span>Descripción</span>
+                  <span>Resultado</span>
+                  <span>Puntaje (Valor)</span>
+              </div>
+              ${Object.values(categoryStats).map(category => `
+                  <div class="category-item">
+                      <div>
+                          <div class="category-name">${category.name}</div>
+                          <div class="category-result">Resultado Categoría:</div>
+                      </div>
+                      <div></div>
+                      <div class="category-score-box">${category.totalScore}/${category.maxScore}</div>
+                  </div>
+              `).join('')}
+          </div>
+
+          <div class="legend-section">
+              <div class="legend-item">
+                  <div class="legend-color legend-green"></div>
+                  <span>Puntaje > 66%</span>
+              </div>
+              <div class="legend-item">
+                  <div class="legend-color legend-orange"></div>
+                  <span>33% < Puntaje < 66%</span>
+              </div>
+              <div class="legend-item">
+                  <div class="legend-color legend-red"></div>
+                  <span>Puntaje < 33%</span>
+              </div>
+          </div>
+
+          <div class="questions-section">
+              <h2 class="section-title">Resumen por Pregunta</h2>
+              <div class="questions-header">
+                  <span>Descripción</span>
+                  <span>Categoría</span>
+                  <span>Nivel de Dificultad</span>
+                  <span>Puntaje</span>
+              </div>
+              ${answers.map((answer, i) => `
+                  <div class="question-item">
+                      <div class="question-header-row">
+                          <div class="question-title">${i+1}.- ${answer.title || 'Pregunta sin título'}</div>
+                          <div class="question-category">${answer.category_name || 'Programación'}</div>
+                          <div class="question-difficulty">${answer.difficulty || 'Medio'}</div>
+                          <div class="question-score">${answer.score || 0} de ${answer.question_max_score || 10}</div>
+                      </div>
+                      ${answer.description ? `<div class="question-description"><strong>Descripción:</strong><br>${answer.description}</div>` : ''}
+                      ${answer.answer_text ? `<div class="candidate-answer"><strong>Respuesta del candidato:</strong><br><pre style="background: #f8f8f8; padding: 15px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.4; overflow-wrap: break-word; white-space: pre-wrap;">${answer.answer_text}</pre></div>` : '<div class="no-answer" style="color: #666; font-style: italic; margin-top: 15px;">No respondida</div>'}
+                  </div>
+              `).join('')}
+          </div>
+
+          <div class="bottom-legend">
+              <div class="bottom-legend-item">
+                  <div class="bottom-legend-color legend-gray"></div>
+                  <span>No Respondido</span>
+              </div>
+              <div class="bottom-legend-item">
+                  <div class="bottom-legend-color legend-yellow"></div>
+                  <span>Parcialmente Correcto</span>
+              </div>
+              <div class="bottom-legend-item">
+                  <div class="bottom-legend-color legend-red"></div>
+                  <span>Incorrecto</span>
+              </div>
+              <div class="bottom-legend-item">
+                  <div class="bottom-legend-color legend-green"></div>
+                  <span>Correcto</span>
+              </div>
+          </div>
+      </div>
+  </body>
+  </html>`;
+      };
+
+      const htmlContent = generateProfessionalHTML(candidate, answers);
+
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+      const page = await browser.newPage();
+      await page.setContent(htmlContent);
+      const pdfBuffer = await page.pdf({ format: 'A4' });
+      // GUARDAR PDF DIRECTO DEL PUPPETEER (SIN HTTP)
+      // GUARDAR PDF DIRECTO DEL PUPPETEER (SIN HTTP)
+      const testPath = path.join(process.cwd(), 'test_direct.pdf');
+      fs.writeFileSync(testPath, pdfBuffer);
+      console.log('PDF directo guardado en:', testPath);
+
+      await browser.close();
+
+      const fileName = `Reporte_${candidate.name}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+  // DEBUGGING: Verificar el buffer
+  console.log('PDF Buffer length:', pdfBuffer.length);
+  console.log('PDF Buffer type:', typeof pdfBuffer);
+  console.log('PDF Buffer first bytes:', pdfBuffer.slice(0, 10));
+
+  // HEADERS ALTERNATIVOS
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  res.setHeader('Content-Length', pdfBuffer.length);
+  res.setHeader('Cache-Control', 'no-cache');
+
+  res.end(pdfBuffer, 'binary');
+
+    } catch (error) {
+      console.error('Error generando reporte PDF:', error);
+      res.status(500).json({ error: 'Error al generar el reporte PDF', details: error.message });
+    }
+  });
+
+  // Endpoint temporal para investigar datos del candidato 24
+  router.get('/debug/candidate/:id', (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.id);
+      
+      // 1. Datos del candidato
+      const candidate = db.prepare('SELECT * FROM candidates WHERE id = ?').get(candidateId);
+      
+      // 2. Sesiones del candidato
+      const sessions = db.prepare('SELECT * FROM test_sessions WHERE candidate_id = ?').all(candidateId);
+      
+      // 3. Respuestas del candidato (para todas las sesiones)
+      const answers = db.prepare(`
+        SELECT a.*, q.title, q.description, q.max_score as question_max_score
+        FROM answers a 
+        LEFT JOIN questions q ON a.question_id = q.id
+        WHERE a.session_id IN (SELECT id FROM test_sessions WHERE candidate_id = ?)
+      `).all(candidateId);
+
+      // 4. Verificar si hay columna score en answers
+      const answersSchema = db.prepare("PRAGMA table_info(answers)").all();
+      
+      res.json({
+        candidate,
+        sessions,
+        answers,
+        answersSchema,
+        summary: {
+          candidate_exists: !!candidate,
+          sessions_count: sessions.length,
+          answers_count: answers.length,
+          has_score_column: answersSchema.some(col => col.name === 'score')
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message, stack: error.stack });
+    }
+  });
+
+  // Endpoint temporal para verificar esquema de BD
+  router.get('/debug/schema', (req, res) => {
+    try {
+      // Verificar columnas de test_sessions
+      const testSessionsSchema = db.prepare("PRAGMA table_info(test_sessions)").all();
+
+      // Verificar columnas de answers
+      const answersSchema = db.prepare("PRAGMA table_info(answers)").all();
+
+      res.json({
+        test_sessions: testSessionsSchema,
+        answers: answersSchema
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  export default router;
+
+  

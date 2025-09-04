@@ -1,0 +1,796 @@
+import express from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import { db } from '../database/init.js';
+import crypto from 'crypto';
+import puppeteer from 'puppeteer';
+
+const router = express.Router();
+
+// Get all candidates with their test sessions
+router.get('/', (req, res) => {
+  try {
+    
+    const candidatesQuery = `
+      SELECT c.*,
+             COUNT(DISTINCT s.id) as total_tests,
+             COUNT(DISTINCT CASE WHEN s.status = 'completed' THEN s.id END) as completed_tests,
+             COUNT(DISTINCT CASE WHEN s.status = 'in_progress' THEN s.id END) as in_progress_tests,
+             COUNT(DISTINCT CASE WHEN s.status = 'pending' THEN s.id END) as pending_tests,
+             AVG(CASE WHEN s.status = 'completed' THEN s.percentage_score END) as avg_score
+      FROM candidates c
+      LEFT JOIN test_sessions s ON c.id = s.candidate_id
+      GROUP BY c.id
+      ORDER BY c.created_at DESC
+    `;
+
+    const candidates = db.prepare(candidatesQuery).all();
+    
+    // Format the response
+    const candidatesWithStats = candidates.map(candidate => ({
+      ...candidate,
+      avg_score: candidate.avg_score ? Math.round(candidate.avg_score * 100) / 100 : null
+    }));
+
+    res.json(candidatesWithStats);
+  } catch (error) {
+    console.error('Error al obtener candidatos:', error);
+    res.status(500).json({ error: 'Error al obtener candidatos' });
+  }
+});
+
+// Create new candidate
+router.post('/', (req, res) => {
+  try {
+    const { 
+      name, 
+      lastname, 
+      email, 
+      phone, 
+      position_applied, 
+      experience_level, 
+      test_id, 
+      expires_at, 
+      custom_message 
+    } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Nombre y email son requeridos' });
+    }
+
+    // Verificar si ya existe un candidato con el mismo email Y misma prueba
+    const existingCandidate = db.prepare(
+      'SELECT id, name, test_id FROM candidates WHERE email = ? AND test_id = ?'
+    ).get(email, test_id);
+    
+    if (existingCandidate) {
+      const testName = db.prepare('SELECT name FROM tests WHERE id = ?').get(test_id)?.name || 'esta prueba';
+      return res.status(400).json({ 
+        error: 'candidate_exists',
+        message: `El candidato ${existingCandidate.name} ya está registrado para ${testName}`,
+        candidateId: existingCandidate.id
+      });
+    }
+
+    // Generate session token for the test
+    const sessionToken = crypto.randomUUID();
+
+    const insertQuery = `
+      INSERT INTO candidates (
+        name, lastname, email, phone, position_applied, experience_level, 
+        test_id, expires_at, status, session_token, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    const timestamp = new Date().toISOString();
+    const values = [
+      name,
+      lastname || '',
+      email,
+      phone || null,
+      position_applied || '',
+      experience_level || null,
+      test_id || null,
+      expires_at || null,
+      'pending',
+      sessionToken,
+      timestamp,
+      timestamp
+    ];
+
+    const result = db.prepare(insertQuery).run(...values);
+
+    console.log('=== DEBUG GENERAL ===');
+    console.log('test_id recibido:', test_id);
+    console.log('test_id type:', typeof test_id);
+    console.log('test_id truthy:', !!test_id);
+    console.log('=== DATOS RECIBIDOS COMPLETOS ===', { name, lastname, email, test_id, expires_at });
+
+  console.log('=== DEBUG GENERAL ===');
+
+    // Si tiene test_id, crear también la sesión correspondiente
+    if (test_id) {
+      console.log('=== DEBUG CREACIÓN SESIÓN ===');
+      console.log('test_id:', test_id);
+      
+      const test = db.prepare('SELECT * FROM tests WHERE id = ?').get(test_id);
+      console.log('test encontrado:', test);
+      
+      if (test) {
+        const insertSessionQuery = `
+          INSERT INTO test_sessions (candidate_id, test_id, token, time_limit_minutes, status, created_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `;
+        
+        const sessionValues = [
+          result.lastInsertRowid,
+          test_id,
+          sessionToken,
+          test.time_limit,
+          'pending',
+          timestamp
+        ];
+        
+        console.log('valores para sesión:', sessionValues);
+        
+        try {
+          const sessionResult = db.prepare(insertSessionQuery).run(...sessionValues);
+          console.log('sesión creada con ID:', sessionResult.lastInsertRowid);
+        } catch (error) {
+          console.error('ERROR creando sesión:', error);
+        }
+      } else {
+        console.log('NO se encontró el test con ID:', test_id);
+      }
+    } else {
+      console.log('NO hay test_id para crear sesión');
+    }
+
+    res.json({ 
+      id: result.lastInsertRowid, 
+      sessionToken,
+      message: 'Candidato creado exitosamente' 
+    });
+  } catch (error) {
+    console.error('Error al crear candidato:', error);
+    res.status(500).json({ error: 'Error al crear candidato' });
+  }
+});
+
+router.post('/:candidateId/invite', (req, res) => {
+  try {
+    const candidateId = parseInt(req.params.candidateId);
+    const { testId, customMessage } = req.body;
+
+    if (!testId) {
+      return res.status(400).json({ error: 'ID de prueba requerido' });
+    }
+
+    const candidate = db.prepare('SELECT * FROM candidates WHERE id = ?').get(candidateId);
+    if (!candidate) {
+      return res.status(404).json({ error: 'Candidato no encontrado' });
+    }
+
+    const test = db.prepare('SELECT * FROM tests WHERE id = ?').get(parseInt(testId));
+    if (!test) {
+      return res.status(404).json({ error: 'Prueba no encontrada' });
+    }
+
+    const token = uuidv4();
+    const timestamp = new Date().toISOString();
+    
+    const insertSessionQuery = `
+      INSERT INTO test_sessions (candidate_id, test_id, token, time_limit_minutes, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `;
+    
+    const sessionValues = [
+      candidateId,           // ✅ CORREGIDO
+      parseInt(testId),      // ✅ CORREGIDO  
+      token,                 // ✅ CORREGIDO
+      test.time_limit,
+      'pending',
+      timestamp
+    ];
+
+    const result = db.prepare(insertSessionQuery).run(...sessionValues);
+    
+    const testUrl = `${req.protocol}://${req.get('host')}/test/${token}`;
+
+    res.json({
+      sessionId: result.lastInsertRowid,
+      token,
+      testUrl,
+      message: 'Invitación creada exitosamente',
+      candidate: {
+        name: candidate.name,
+        email: candidate.email
+      },
+      test: {
+        name: test.name,
+        timeLimit: test.time_limit
+      }
+    });
+  } catch (error) {
+    console.error('Error al crear invitación:', error);
+    res.status(500).json({ error: 'Error al crear invitación' });
+  }
+});
+
+// Delete candidate
+router.delete('/:id', (req, res) => {
+  try {
+    const candidateId = parseInt(req.params.id);
+    
+    if (isNaN(candidateId)) {
+      return res.status(400).json({ error: 'ID de candidato no válido' });
+    }
+    
+    // Verificar si el candidato existe
+    const candidate = db.prepare('SELECT * FROM candidates WHERE id = ?').get(candidateId);
+    if (!candidate) {
+      return res.status(404).json({ error: 'Candidato no encontrado' });
+    }
+    
+    // Iniciar una transacción para asegurar la integridad de los datos
+    db.prepare('BEGIN TRANSACTION').run();
+    
+    try {
+      // Eliminar answers primero
+      db.prepare('DELETE FROM answers WHERE session_id IN (SELECT id FROM test_sessions WHERE candidate_id = ?)').run(candidateId);
+      // Eliminar test_sessions
+      db.prepare('DELETE FROM test_sessions WHERE candidate_id = ?').run(candidateId);
+      
+      // Luego eliminar el candidato
+      const result = db.prepare('DELETE FROM candidates WHERE id = ?').run(candidateId);
+      
+      db.prepare('COMMIT').run();
+      
+      if (result.changes === 0) {
+        return res.status(404).json({ error: 'No se pudo eliminar el candidato' });
+      }
+      
+      res.status(200).json({ 
+        message: 'Candidato eliminado correctamente',
+        candidateId: candidateId
+      });
+      
+    } catch (error) {
+      db.prepare('ROLLBACK').run();
+      throw error; // Esto será capturado por el catch externo
+    }
+    
+  } catch (error) {
+    console.error('Error al eliminar candidato:', error);
+    res.status(500).json({ 
+      error: 'Error al eliminar el candidato',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Get candidate test sessions
+router.get('/:candidateId/sessions', (req, res) => {
+  try {
+    const candidateId = parseInt(req.params.candidateId);
+
+    const sessionsQuery = `
+      SELECT s.*, t.name as test_name, t.description as test_description
+      FROM test_sessions s
+      LEFT JOIN tests t ON s.test_id = t.id
+      WHERE s.candidate_id = ?
+      ORDER BY s.created_at DESC
+    `;
+
+    const sessions = db.prepare(sessionsQuery).all(candidateId);
+    
+    res.json(sessions);
+  } catch (error) {
+    console.error('Error al obtener sesiones:', error);
+    res.status(500).json({ error: 'Error al obtener sesiones' });
+  }
+});
+
+// Generate PDF report for candidate
+router.get('/:id/reports/pdf', async (req, res) => {
+  try {
+    const candidateId = parseInt(req.params.id);
+
+    // Get candidate data with their test session
+    const candidateQuery = `
+      SELECT c.*, ts.*, t.name as test_name, t.description as test_description,
+            ts.percentage_score, ts.time_spent_seconds, ts.started_at,
+            ts.finished_at
+      FROM candidates c
+      LEFT JOIN test_sessions ts ON c.id = ts.candidate_id
+      LEFT JOIN tests t ON ts.test_id = t.id
+      WHERE c.id = ? AND ts.status = 'completed'
+      ORDER BY ts.created_at DESC
+      LIMIT 1
+    `;
+    const candidate = db.prepare(candidateQuery).get(candidateId);
+    console.log('CANDIDATE DATA:', candidate);
+
+    if (!candidate) {
+      return res.status(404).json({ error: 'Candidato no encontrado o no ha completado ninguna prueba' });
+    }
+
+    // Get answers with question details
+    const answersQuery = `
+      SELECT a.*, q.title, q.description, q.type, q.difficulty, q.max_score as question_max_score,
+            c.name as category_name, a.score
+      FROM answers a
+      JOIN questions q ON a.question_id = q.id
+      LEFT JOIN categories c ON q.category_id = c.id
+      WHERE a.session_id = ?
+      ORDER BY q.order_index
+    `;
+
+    console.log('SESSION ID PARA ANSWERS:', candidate.id);
+    let answers;
+    try {
+      console.log('Buscando respuestas para session_id:', candidate.id);
+      answers = db.prepare(answersQuery).all(candidate.id);
+      console.log('ANSWERS encontradas:', answers.length);
+    } catch (error) {
+      console.error('Error buscando answers:', error.message);
+      answers = [];
+    }
+
+    // Function to generate HTML template for PDF report
+    const generateReportHTML = (candidate, answers) => {
+      const formatDate = (dateString) => {
+        if (!dateString) return 'N/A';
+        return new Date(dateString).toLocaleDateString('es-ES', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      };
+
+      const formatTime = (seconds) => {
+        if (!seconds) return '0 min';
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        return minutes > 0 ? `${minutes} min ${remainingSeconds}s` : `${seconds}s`;
+      };
+
+      // Calculate statistics
+      const totalQuestions = answers.length;
+      const totalScore = answers.reduce((sum, answer) => sum + (answer.max_score || 0), 0);
+      const obtainedScore = answers.reduce((sum, answer) => sum + (answer.score || 0), 0);
+      const percentage = totalScore > 0 ? Math.round((obtainedScore / totalScore) * 100) : 0;
+
+      // Group answers by category
+      const answersByCategory = answers.reduce((acc, answer) => {
+        const category = answer.category_name || 'Sin categoría';
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category].push(answer);
+        return acc;
+      }, {});
+
+      const categoryStats = Object.entries(answersByCategory).map(([category, categoryAnswers]) => {
+        const categoryTotal = categoryAnswers.reduce((sum, answer) => sum + (answer.question_max_score || 0), 0);
+        const categoryObtained = categoryAnswers.reduce((sum, answer) => sum + (answer.score || 0), 0);
+        const categoryPercentage = categoryTotal > 0 ? Math.round((categoryObtained / categoryTotal) * 100) : 0;
+
+        return {
+          name: category,
+          obtained: categoryObtained,
+          total: categoryTotal,
+          percentage: categoryPercentage,
+          questions: categoryAnswers.length
+        };
+      });
+
+      const htmlTemplate = `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte de Prueba Técnica - ${candidate.name}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #005AEE 0%, #0047CC 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 20px;
+        }
+
+        .section:last-child {
+            border-bottom: none;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #005AEE;
+            margin-bottom: 15px;
+            border-left: 4px solid #005AEE;
+            padding-left: 10px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-item {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+
+        .info-label {
+            font-weight: bold;
+            color: #666;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            font-size: 16px;
+            color: #333;
+        }
+
+        .score-container {
+            text-align: center;
+            background: linear-gradient(135deg, #e8f4f8 0%, #f0f8ff 100%);
+            padding: 25px;
+            border-radius: 12px;
+            border: 2px solid #005AEE;
+            margin: 20px 0;
+        }
+
+        .score-circle {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: ${percentage >= 70 ? '#28a745' : percentage >= 50 ? '#ffc107' : '#dc3545'};
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin: 0 auto 15px;
+        }
+
+        .category-stats {
+            margin-top: 20px;
+        }
+
+        .category-item {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border-left: 4px solid #005AEE;
+        }
+
+        .category-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .category-name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .category-score {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .category-bar {
+            width: 100%;
+            height: 8px;
+            background-color: #dee2e6;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .category-fill {
+            height: 100%;
+            background-color: #005AEE;
+            transition: width 0.3s ease;
+        }
+
+        .questions-summary {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .question-item {
+            padding: 10px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .question-item:last-child {
+            border-bottom: none;
+        }
+
+        .question-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .question-details {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .footer {
+            background-color: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            border-top: 1px solid #dee2e6;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .badge-success { background-color: #d4edda; color: #155724; }
+        .badge-warning { background-color: #fff3cd; color: #856404; }
+        .badge-danger { background-color: #f8d7da; color: #721c24; }
+
+        @media print {
+            body { background-color: white; }
+            .container { box-shadow: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>REPORTE DE PRUEBA TÉCNICA</h1>
+            <p>Sistema de Evaluación 3IT</p>
+        </div>
+
+        <div class="content">
+            <!-- Información del Candidato -->
+            <div class="section">
+                <div class="section-title">Información del Candidato</div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Nombre Completo</div>
+                        <div class="info-value">${candidate.name} ${candidate.lastname || ''}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Email</div>
+                        <div class="info-value">${candidate.email}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Puesto Aplicado</div>
+                        <div class="info-value">${candidate.position_applied || 'No especificado'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Nivel de Experiencia</div>
+                        <div class="info-value">${candidate.experience_level || 'No especificado'}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Información de la Prueba -->
+            <div class="section">
+                <div class="section-title">Información de la Prueba</div>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Nombre de la Prueba</div>
+                        <div class="info-value">${candidate.test_name || 'N/A'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Fecha de Inicio</div>
+                        <div class="info-value">${formatDate(candidate.started_at)}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Fecha de Finalización</div>
+                        <div class="info-value">${formatDate(candidate.finished_at)}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Tiempo Empleado</div>
+                        <div class="info-value">${formatTime(candidate.time_spent_seconds)}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Puntuación General -->
+            <div class="section">
+                <div class="section-title">Puntuación General</div>
+                <div class="score-container">
+                    <div class="score-circle">
+                        ${percentage}%
+                    </div>
+                    <h3>Puntuación Final: ${obtainedScore}/${totalScore} puntos</h3>
+                    <p>Total de preguntas: ${totalQuestions}</p>
+                    <span class="badge ${percentage >= 70 ? 'badge-success' : percentage >= 50 ? 'badge-warning' : 'badge-danger'}">
+                        ${percentage >= 70 ? 'Aprobado' : percentage >= 50 ? 'Regular' : 'Reprobado'}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Puntuación por Categoría -->
+            <div class="section">
+                <div class="section-title">Puntuación por Categoría</div>
+                <div class="category-stats">
+                    ${categoryStats.map(category => `
+                        <div class="category-item">
+                            <div class="category-header">
+                                <span class="category-name">${category.name}</span>
+                                <span class="category-score">${category.obtained}/${category.total} puntos (${category.percentage}%)</span>
+                            </div>
+                            <div class="category-bar">
+                                <div class="category-fill" style="width: ${category.percentage}%"></div>
+                            </div>
+                            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                                ${category.questions} pregunta${category.questions !== 1 ? 's' : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+
+            <!-- Resumen de Preguntas -->
+            <div class="section">
+                <div class="section-title">Resumen de Preguntas</div>
+                <div class="questions-summary">
+                    ${answers.map((answer, index) => `
+                        <div class="question-item">
+                            <div class="question-title">
+                                ${index + 1}. ${answer.title}
+                            </div>
+                            <div class="question-details">
+                                Tipo: ${answer.type} | Dificultad: ${answer.difficulty} |
+                                Puntuación: ${answer.score || 0}/${answer.question_max_score} puntos
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Reporte generado el ${formatDate(new Date().toISOString())}</p>
+            <p>Sistema de Pruebas Técnicas 3IT © ${new Date().getFullYear()}</p>
+        </div>
+    </div>
+</body>
+</html>
+      `;
+
+      return htmlTemplate;
+    };
+
+    // Generate HTML content for PDF
+    const htmlContent = generateReportHTML(candidate, answers);
+    
+    // DEBUG: Log HTML info AFTER generation
+    console.log('HTML LENGTH:', htmlContent.length);
+    console.log('HTML PREVIEW:', htmlContent.substring(0, 200));
+
+    // Generate PDF with Puppeteer - IMPROVED CONFIG
+    const browser = await puppeteer.launch({ 
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    const page = await browser.newPage();
+    
+    await page.setContent(htmlContent, {
+      waitUntil: 'networkidle0',
+      timeout: 30000
+    });
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      preferCSSPageSize: false,
+      margin: {
+        top: '1cm',
+        right: '1cm',
+        bottom: '1cm',
+        left: '1cm'
+      }
+    });
+
+    await browser.close();
+
+    // Validate PDF buffer
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      throw new Error('PDF buffer está vacío');
+    }
+
+    // Set response headers for PDF download
+    const fileName = `Reporte_${candidate.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+
+    res.send(pdfBuffer);
+
+  } catch (error) {
+    console.error('Error generando reporte PDF:', error);
+    res.status(500).json({ error: 'Error al generar el reporte PDF', details: error.message });
+  }
+});
+
+// Endpoint temporal para verificar esquema de BD
+router.get('/debug/schema', (req, res) => {
+  try {
+    // Verificar columnas de test_sessions
+    const testSessionsSchema = db.prepare("PRAGMA table_info(test_sessions)").all();
+
+    // Verificar columnas de answers
+    const answersSchema = db.prepare("PRAGMA table_info(answers)").all();
+
+    res.json({
+      test_sessions: testSessionsSchema,
+      answers: answersSchema
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+export default router;
