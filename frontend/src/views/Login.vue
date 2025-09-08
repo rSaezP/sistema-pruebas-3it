@@ -6,72 +6,47 @@
         <p>Acceso de administrador</p>
       </div>
       
-      <form @submit.prevent="handleLogin" class="login-form">
-        <div class="input-group">
-          <label for="username" class="input-label">Usuario</label>
-          <input
-            id="username"
-            v-model="username"
-            type="text"
-            class="input"
-            placeholder="Ingrese su usuario"
-            required
-          />
-        </div>
-        
-        <div class="input-group">
-          <label for="password" class="input-label">Contraseña</label>
-          <input
-            id="password"
-            v-model="password"
-            type="password"
-            class="input"
-            placeholder="Ingrese su contraseña"
-            required
-          />
-        </div>
-        
+      <div class="login-form">
         <div v-if="error" class="alert alert-error">
           {{ error }}
         </div>
         
-        <button type="submit" class="btn btn-primary btn-lg" :disabled="loading">
+        <button @click="handleCognitoLogin" class="btn btn-primary btn-lg" :disabled="loading">
           <span v-if="loading" class="spinner"></span>
-          {{ loading ? 'Iniciando sesión...' : 'Iniciar Sesión' }}
+          {{ loading ? 'Redirigiendo...' : 'Iniciar Sesión con AWS Cognito' }}
         </button>
-      </form>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useAuthStore } from '../stores/auth';
+import { useAuthStore } from '@/stores/auth';
 
 const router = useRouter();
 const authStore = useAuthStore();
 
-const username = ref('admin');
-const password = ref('admin123');
 const loading = ref(false);
 const error = ref('');
 
-const handleLogin = async () => {
+onMounted(() => {
+  // Check if user is already authenticated
+  if (authStore.isAuthenticated) {
+    router.push('/admin/dashboard');
+  }
+});
+
+const handleCognitoLogin = async () => {
   loading.value = true;
   error.value = '';
   
   try {
-    const result = await authStore.login(username.value, password.value);
-    
-    if (result.success) {
-      router.push('/admin/dashboard');
-    } else {
-      error.value = result.error || 'Error al iniciar sesión';
-    }
+    await authStore.loginCognito();
   } catch (err) {
-    error.value = 'Error de conexión';
-  } finally {
+    console.error('Error iniciando login:', err);
+    error.value = 'Error al iniciar sesión';
     loading.value = false;
   }
 };

@@ -174,6 +174,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 // Props
 const props = defineProps({
@@ -189,12 +190,19 @@ const emit = defineEmits(['toggle-sidebar'])
 // Router
 const router = useRouter()
 
-// User data (in a real app, this would come from a store)
-const user = ref({
-  name: 'Admin Usuario',
-  email: 'admin@3it.cl',
-  role: 'Administrador',
-  avatar: ''
+// Auth store
+const authStore = useAuthStore()
+
+// User data from Cognito
+const user = computed(() => {
+  const userName = authStore.getUserName()
+  const userInfo = authStore.user as any
+  return {
+    name: userName || userInfo?.name || 'Usuario',
+    email: userInfo?.email || 'usuario@email.com',
+    role: 'Administrador',
+    avatar: userInfo?.picture || ''
+  }
 })
 
 // UI State
@@ -319,8 +327,7 @@ const showHelp = () => {
 
 const logout = () => {
   closeAllMenus()
-  // In a real app, this would call the logout API and clear auth state
-  router.push('/login')
+  authStore.logout()
 }
 
 // Close menus when clicking outside

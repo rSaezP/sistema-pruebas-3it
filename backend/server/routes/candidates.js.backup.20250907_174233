@@ -3,35 +3,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../database/init.js';
 import crypto from 'crypto';
 import puppeteer from 'puppeteer';
-import fs from 'fs';          
-import path from 'path';      
-import { LanguageEvaluators } from '../evaluators/LanguageEvaluators.js';
+import fs from 'fs';          // ← AGREGAR ESTA LÍNEA
+import path from 'path';      // ← AGREGAR ESTA LÍNEA
+import { LanguageEvaluators } from "../evaluators/LanguageEvaluators.js";
 
-async function executeCode(code, testCase, language) {
-  try {
-    console.log(`[DEBUG-EXEC] Ejecutando evaluador para ${language}`);
-    
-    if (!LanguageEvaluators || !LanguageEvaluators.getEvaluator) {
-      console.log(`[DEBUG-EXEC] LanguageEvaluators no disponible`);
-      return { success: false, output: '', error: 'LanguageEvaluators not available' };
-    }
-    
-    const evaluator = LanguageEvaluators.getEvaluator(language);
-    
-    if (evaluator) {
-      console.log(`[DEBUG-EXEC] Evaluador encontrado para ${language}`);
-      const result = await evaluator.evaluate(code, testCase);
-      console.log(`[DEBUG-EXEC] Resultado:`, result);
-      return result;
-    } else {
-      console.log(`[DEBUG-EXEC] No hay evaluador para ${language}`);
-      return { success: false, output: '', error: 'No evaluator found' };
-    }
-  } catch (error) {
-    console.log(`[DEBUG-EXEC] Error:`, error.message);
-    return { success: false, output: '', error: error.message };
-  }
-}
 const router = express.Router();
 
 // Get all candidates with their test sessions
@@ -924,156 +899,8 @@ router.get('/:id/reports/pdf', async (req, res) => {
     }
   });
 
-  // Función para evaluar una respuesta individual
-async function evaluateAnswer(answer) {
-  console.log(`[DEBUG-EVAL] Evaluando respuesta ID: ${answer.id}`);
-  
-  try {
-    const question = db.prepare('SELECT * FROM questions WHERE id = ?').get(answer.question_id);
-    if (!question) {
-      console.error(`[DEBUG-EVAL] Pregunta no encontrada para la respuesta ID: ${answer.id}`);
-      return { success: false, error: 'Pregunta no encontrada' };
-    }
-
-    let testCases = [];
-    try {
-      testCases = JSON.parse(question.test_cases || '[]');
-    } catch (e) {
-      console.error(`[DEBUG-EVAL] Error al analizar test cases para pregunta ${question.id}:`, e);
-      testCases = [];
-    }
-
-    console.log(`[DEBUG-EVAL] Test cases encontrados: ${testCases.length}`);
-    
-    let passedTests = 0;
-    let totalScore = 0;
-    let maxPossibleScore = 0;
-    const results = [];
-
-    // Si no hay test cases, asignar puntaje máximo si hay respuesta
-    if (testCases.length === 0) {
-      console.log(`[DEBUG-EVAL] Sin test cases, verificando respuesta`);
-      const hasAnswer = answer.answer && answer.answer.trim() !== '';
-      const score = hasAnswer ? (question.max_score || 1) : 0;
-      
-      db.prepare(`
-        UPDATE answers 
-        SET score = ?, 
-            percentage_score = ?,
-            test_cases_passed = ?,
-            test_cases_total = ?,
-            updated_at = ?
-        WHERE id = ?
-      `).run(
-        score,
-        score * 100 / (question.max_score || 1),
-        hasAnswer ? 1 : 0,
-        1,
-        new Date().toISOString(),
-        answer.id
-      );
-      
-      return { success: true, score, maxScore: question.max_score || 1 };
-    }
-
-    // Evaluar cada test case
-    for (const testCase of testCases) {
-      console.log(`[DEBUG-EVAL] Procesando test case: ${testCase.input} -> ${testCase.expected_output}`);
-      
-      try {
-        const execution = await executeCode(answer.answer_text || answer.answer || '', testCase, question.language);
-        const isCorrect = execution.success && 
-                         execution.output.trim() === testCase.expected_output.trim();
-        
-        if (isCorrect) {
-          passedTests++;
-          totalScore += testCase.score || 1;
-        } else if (execution.success) {
-
-
-          // Aplicar crédito parcial universal
-          const partialCredit = calculateUniversalPartialCredit(
-            answer.answer, 
-            testCase, 
-            question.language
-          );
-          totalScore += (testCase.score || 1) * (partialCredit / 100);
-        }
-        
-        maxPossibleScore += testCase.score || 1;
-        
-        results.push({
-          input: testCase.input,
-          expected: testCase.expected_output,
-          output: execution.output,
-          success: isCorrect,
-          error: execution.error,
-          executionTime: execution.executionTime
-        });
-        
-      } catch (error) {
-        console.error(`[DEBUG-EVAL] Error evaluando test case:`, error);
-        results.push({
-          input: testCase.input,
-          expected: testCase.expected_output,
-          output: '',
-          success: false,
-          error: error.message,
-          executionTime: 0
-        });
-      }
-    }
-
-    // Calcular puntaje final
-    const finalScore = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * (question.max_score || 1) : 0;
-    const percentageScore = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
-    
-    console.log(`[DEBUG-EVAL] Resultados para respuesta ${answer.id}:`);
-    console.log(`- Test cases pasados: ${passedTests}/${testCases.length}`);
-    console.log(`- Puntaje bruto: ${totalScore}/${maxPossibleScore}`);
-    console.log(`- Puntaje final: ${finalScore}/${question.max_score}`);
-    console.log(`- Porcentaje: ${percentageScore.toFixed(2)}%`);
-
-    // Actualizar la respuesta en la base de datos
-    db.prepare(`
-      UPDATE answers 
-      SET score = ?,
-          percentage_score = ?,
-          test_cases_passed = ?,
-          test_cases_total = ?,
-          last_modified_at = ?
-      WHERE id = ?
-    `).run(
-      finalScore,
-      percentageScore,
-      passedTests,
-      testCases.length,
-      JSON.stringify({ results }),
-      new Date().toISOString(),
-      answer.id
-    );
-
-    return { 
-      success: true, 
-      score: finalScore, 
-      maxScore: question.max_score || 1,
-      passedTests,
-      totalTests: testCases.length,
-      percentage: percentageScore
-    };
-    
-  } catch (error) {
-    console.error(`[DEBUG-EVAL] Error en evaluateAnswer:`, error);
-    return { 
-      success: false, 
-      error: error.message,
-      answerId: answer.id
-    };
-  }
-}
-
-// Endpoint para re-evaluar respuestas (incluso las ya evaluadas)  
-router.post('/re-evaluate-answers/:candidateId', async (req, res) => {
+  // Endpoint para re-evaluar respuestas (incluso las ya evaluadas)  
+  router.post('/re-evaluate-answers/:candidateId', async (req, res) => {
     try {
       const candidateId = parseInt(req.params.candidateId);
       
@@ -1085,97 +912,48 @@ router.post('/re-evaluate-answers/:candidateId', async (req, res) => {
       `).run(candidateId);
       
       // Ahora evaluar con el nuevo sistema
-      const fetchResponse = await fetch(`http://localhost:4000/api/candidates/evaluate-answers/${candidateId}`, {
+      const response = await fetch(`http://localhost:4000/api/candidates/evaluate-answers/${candidateId}`, {
         method: 'POST'
       });
-      const result = await fetchResponse.json();
+      const result = await response.json();
       
-      const responseData = {
+      res.json({
         message: 'Re-evaluación completada',
-        evaluatedCount: result.evaluatedCount || 0,
-        sessionId: result.sessionId,
-        totalScore: result.totalScore || 0,
-        maxPossibleScore: result.maxPossibleScore || 0,
-        percentage: result.percentage || 0,
-        results: result.results || []
-      };
-      
-      console.log(`[DEBUG-EVAL] === EVALUACIÓN FINALIZADA ===`);
-      console.log(`[DEBUG-EVAL] Respuestas evaluadas: ${responseData.evaluatedCount}`);
-      console.log(`[DEBUG-EVAL] Puntaje final: ${responseData.totalScore}/${responseData.maxPossibleScore} (${responseData.percentage}%)`);
-      
-      res.json(responseData);
+        ...result
+      });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
   });
 
   // Endpoint para evaluar todas las respuestas sin calificar
-router.post('/evaluate-answers/:candidateId', async (req, res) => {
+  router.post('/evaluate-answers/:candidateId', async (req, res) => {
     try {
       const candidateId = parseInt(req.params.candidateId);
       
-      // Verificar si el candidato existe
-      const candidate = db.prepare('SELECT * FROM candidates WHERE id = ?').get(candidateId);
-      if (!candidate) {
-        return res.status(404).json({ error: 'Candidato no encontrado' });
-      }
-      
-      console.log(`[DEBUG-EVAL] === INICIANDO EVALUACIÓN ===`);
-      console.log(`[DEBUG-EVAL] Candidato: ${candidate.name} ${candidate.lastname} (ID: ${candidateId})`);
-      
-      // Obtener todas las respuestas del candidato (incluyendo las ya evaluadas)
+      // Obtener todas las respuestas sin calificar del candidato
       const answers = db.prepare(`
-        SELECT a.*, q.language, q.max_score, q.type, q.test_cases, ts.id as session_id
+        SELECT a.*, q.language, q.max_score, q.type
         FROM answers a
         JOIN questions q ON a.question_id = q.id
         JOIN test_sessions ts ON a.session_id = ts.id
-        WHERE ts.candidate_id = ?
-        ORDER BY a.id
+        WHERE ts.candidate_id = ? AND a.score = 0
       `).all(candidateId);
-      
-      console.log(`[DEBUG-EVAL] Respuestas encontradas: ${answers.length}`);
 
       if (answers.length === 0) {
-        return res.json({ 
-          success: true,
-          message: 'No hay respuestas para evaluar', 
-          evaluatedCount: 0,
-          candidateId,
-          sessionId: null
-        });
+        return res.json({ message: 'No hay respuestas para evaluar', evaluated: 0 });
       }
 
-      const sessionId = answers[0].session_id;
       let evaluatedCount = 0;
-      let totalScore = 0;
-      let maxPossibleScore = 0;
       const results = [];
-      
-      // Obtener el evaluador una sola vez para optimización
-      const LanguageEvaluators = (await import('./evaluators/LanguageEvaluators.js')).default;
-      
-      // Función para ejecutar código
+
+      // Función para ejecutar código con soporte para TLang
+     // Función para ejecutar código con evaluadores reales
       const executeCode = async (code, testCase, language) => {
-        console.log(`[DEBUG-EXEC] Llamando executeCode para lenguaje: ${language}`);
-        console.log(`[DEBUG-EXEC] Código (primeros 100 caracteres): ${code ? code.substring(0, 100) : 'null'}`);
-        console.log(`[DEBUG-EXEC] Test case: ${JSON.stringify(testCase)}`);
-        
         try {
           const evaluator = LanguageEvaluators.getEvaluator(language);
-          console.log(`[DEBUG-EXEC] Evaluador obtenido: ${evaluator.constructor.name}`);
-          
-          const result = await evaluator.evaluate(code, testCase, language);
-          console.log(`[DEBUG-EXEC] Resultado de evaluate: ${JSON.stringify({
-            success: result.success,
-            output: result.output,
-            error: result.error,
-            executionTime: result.executionTime
-          })}`);
-          
-          return result;
+          return await evaluator.evaluate(code, testCase, language);
         } catch (error) {
-          console.error(`[DEBUG-EXEC] Error en executeCode:`, error);
           return {
             success: false,
             output: '',
@@ -1185,235 +963,99 @@ router.post('/evaluate-answers/:candidateId', async (req, res) => {
         }
       };
 
-      // Evaluar cada respuesta
-      for (const answer of answers) {
-        try {
-          console.log(`[DEBUG-EVAL] Procesando respuesta ID: ${answer.id}`);
-          
-          // Evaluar la respuesta
-          const evaluationResult = await evaluateAnswer(answer);
-          
-          if (evaluationResult.success) {
-            evaluatedCount++;
-            totalScore += evaluationResult.score || 0;
-            maxPossibleScore += evaluationResult.maxScore || 0;
-            
-            results.push({
-              answerId: answer.id,
-              questionId: answer.question_id,
-              score: evaluationResult.score,
-              maxScore: evaluationResult.maxScore,
-              passedTests: evaluationResult.passedTests,
-              totalTests: evaluationResult.totalTests,
-              percentage: evaluationResult.percentage
-            });
-            
-            console.log(`[DEBUG-EVAL] Respuesta ${answer.id} evaluada: ${evaluationResult.score}/${evaluationResult.maxScore} (${evaluationResult.percentage}%)`);
-          } else {
-            console.error(`[DEBUG-EVAL] Error evaluando respuesta ${answer.id}:`, evaluationResult.error);
-            results.push({
-              answerId: answer.id,
-              questionId: answer.question_id,
-              error: evaluationResult.error,
-              success: false
-            });
-          }
-        } catch (error) {
-          console.error(`[DEBUG-EVAL] Excepción inesperada al evaluar respuesta ${answer.id}:`, error);
-          results.push({
-            answerId: answer.id,
-            questionId: answer.question_id,
-            error: error.message,
-            stack: error.stack,
-            success: false
-          });
-        }
-      }
-      
-      // Calcular porcentaje total
-      const percentageScore = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
-      
-      console.log(`[DEBUG-EVAL] === EVALUACIÓN FINALIZADA ===`);
-      console.log(`[DEBUG-EVAL] Respuestas evaluadas: ${evaluatedCount}/${answers.length}`);
-      console.log(`[DEBUG-EVAL] Puntaje total: ${totalScore.toFixed(2)}/${maxPossibleScore.toFixed(2)} (${percentageScore.toFixed(2)}%)`);
-      
-      // Actualizar el puntaje total de la sesión
-      if (sessionId) {
-        db.prepare(`
-          UPDATE test_sessions 
-          SET score = ?, 
-              percentage_score = ?,
-              updated_at = ?
-          WHERE id = ?
-        `).run(
-          totalScore,
-          percentageScore,
-          new Date().toISOString(),
-          sessionId
-        );
-      }
-      
-      // Devolver resultados
-      res.json({
-        success: true,
-        message: 'Evaluación completada exitosamente',
-        evaluatedCount,
-        totalAnswers: answers.length,
-        totalScore: parseFloat(totalScore.toFixed(2)),
-        maxPossibleScore: parseFloat(maxPossibleScore.toFixed(2)),
-        percentage: parseFloat(percentageScore.toFixed(2)),
-        sessionId,
-        candidateId,
-        results
-      });
-      
-    } catch (error) {
-      console.error('[DEBUG-EVAL] Error en evaluate-answers:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Error al evaluar respuestas',
-        details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-      });
-    }
-  });
-
-// Función universal de crédito parcial para todos los lenguajes
-const calculateUniversalPartialCredit = (code, testCase, language) => {
-  const codeLength = code ? code.trim().length : 0;
-  if (codeLength < 10) return 0;
-  
-  let score = 0;
-  
-  // 40% por tener código sustancial
-  if (codeLength >= 30) score += 40;
-  
-  // 30% por estructura básica según tipo
-  if (language === 'sql' && /select.*from/i.test(code)) score += 30;
-  else if (/for|while|if|function|def/i.test(code)) score += 30;
-  
-  // 20% por intentar resolver el problema
-  if (codeLength >= 50) score += 20;
-  
-  return Math.min(score, 70); // Máximo 70% por crédito parcial
-};
-
-// Función para evaluar respuestas de un candidato
-const evaluateCandidateAnswers = async (candidateId) => {
-  try {
-    console.log(`[DEBUG-EVAL] === INICIANDO EVALUACIÓN PARA CANDIDATO ${candidateId} ===`);
-    const results = [];
-    
-    // Obtener respuestas del candidato
-    const answers = db.prepare(`
-      SELECT a.*, q.language, q.max_score, q.type
-      FROM answers a
-      JOIN questions q ON a.question_id = q.id
-      WHERE a.session_id IN (SELECT id FROM test_sessions WHERE candidate_id = ?)
-    `).all(candidateId);
-    
-    console.log(`[DEBUG-EVAL] Respuestas encontradas: ${answers.length}`);
-    
-    if (answers.length === 0) {
-      console.log('[DEBUG-EVAL] No hay respuestas para evaluar');
-      return {
-        success: true,
-        message: 'No hay respuestas para evaluar',
-        evaluatedCount: 0,
-        results: []
-      };
-    }
-    
-    // Evaluar cada respuesta
-    console.log(`[DEBUG-EVAL] === PROCESANDO ${answers.length} RESPUESTAS ===`);
-    let evaluatedCount = 0;
-    
-    for (const answer of answers) {
-      console.log(`\n[DEBUG-EVAL] --- Respuesta ID: ${answer.id} ---`);
-      console.log(`[DEBUG-EVAL] Tipo: ${answer.type}, Lenguaje: ${answer.language}, Pregunta ID: ${answer.question_id}`);
-      console.log(`[DEBUG-EVAL] Código (inicio): ${answer.answer ? answer.answer.substring(0, 100) : 'Sin respuesta'}...`);
-      
-      try {
-        // Obtener casos de prueba para esta pregunta
-        console.log(`[DEBUG-EVAL] Buscando casos de prueba para pregunta ID: ${answer.question_id}`);
-        const testCases = db.prepare('SELECT * FROM test_cases WHERE question_id = ?').all(answer.question_id);
-        console.log(`[DEBUG-EVAL] Casos de prueba encontrados: ${testCases.length}`);
+      // Función universal de crédito parcial para todos los lenguajes
+      const calculateUniversalPartialCredit = (code, testCase, language) => {
+        const codeLength = code.trim().length;
+        if (codeLength < 10) return 0;
         
-        if (testCases.length === 0) {
-          // Sin casos de prueba, asignar puntaje completo (para preguntas SQL/texto)
-          console.log(`[DEBUG-EVAL] No hay casos de prueba, asignando puntaje completo`);
-          const score = answer.max_score || 1;
-          const percentage = 100;
+        let score = 0;
+        
+        // 40% por tener código sustancial
+        if (codeLength >= 30) score += 40;
+        
+        // 30% por estructura básica según tipo
+        if (language === 'sql' && /select.*from/i.test(code)) score += 30;
+        else if (/for|while|if|function|def/i.test(code)) score += 30;
+        
+        // 20% por intentar resolver el problema
+        if (codeLength >= 50) score += 20;
+        
+        return Math.min(score, 70); // Máximo 70% por crédito parcial
+      };
+      
+
+      // Evaluar cada respuesta
+      console.log(`[DIAGNÓSTICO] Iniciando evaluación de ${answers.length} respuestas`);
+      for (const answer of answers) {
+        console.log(`[DIAGNÓSTICO] Procesando respuesta ID: ${answer.id}, Tipo: ${answer.type}, Lenguaje: ${answer.language}`);
+        try {
+          // Obtener casos de prueba para esta pregunta
+          console.log(`[DIAGNÓSTICO] Obteniendo casos de prueba para pregunta ID: ${answer.question_id}`);
+          const testCases = db.prepare('SELECT * FROM test_cases WHERE question_id = ?').all(answer.question_id);
+          console.log(`[DIAGNÓSTICO] Se encontraron ${testCases.length} casos de prueba`);
           
-          console.log(`[DEBUG-EVAL] Actualizando BD - ID: ${answer.id}, Score: ${score}, Porcentaje: ${percentage}%`);
-          
-          db.prepare(`
-            UPDATE answers 
-            SET score = ?, percentage_score = ?, test_cases_passed = 1, test_cases_total = 1
-            WHERE id = ?`).run(score, percentage, passed, total, timestamp, answerId)
-          
-          evaluatedCount++;
-          continue;
-        }
+          if (testCases.length === 0) {
+            // Sin casos de prueba, asignar puntaje completo (para preguntas SQL/texto)
+            const score = answer.max_score;
+            const percentage = 100;
+            
+            db.prepare(`
+              UPDATE answers 
+              SET score = ?, percentage_score = ?, test_cases_passed = 1, test_cases_total = 1
+              WHERE id = ?
+            `).run(score, percentage, answer.id);
+            
+            results.push({ 
+              questionId: answer.question_id, 
+              score, 
+              method: 'manual_full_score',
+              reason: 'No test cases - assuming correct'
+            });
+            evaluatedCount++;
+            continue;
+          }
 
           // Evaluar código contra casos de prueba
           if (answer.type === 'programming' || answer.type === 'sql') {
-            console.log(`[DEBUG-EVAL] Iniciando evaluación de ${testCases.length} casos de prueba`);
             let passedCases = 0;
             let totalScore = 0;
 
-            for (let i = 0; i < testCases.length; i++) {
-              const testCase = testCases[i];
-              console.log(`\n[DEBUG-TEST] --- Caso de prueba ${i+1}/${testCases.length} ---`);
-              console.log(`[DEBUG-TEST] ID: ${testCase.id}, Peso: ${testCase.weight || 1}`);
-              console.log(`[DEBUG-TEST] Entrada: ${testCase.input_data}`);
-              console.log(`[DEBUG-TEST] Salida esperada: ${testCase.expected_output}`);
+            
+
+            for (const testCase of testCases) {
+              console.log(`[DIAGNÓSTICO] Procesando caso de prueba ID: ${testCase.id}`);
               
-              const execution = await executeCode(answer.answer_text || answer.answer || '', testCase, answer.language);
+              const execution = await executeCode(answer.answer_text, testCase, answer.language);
+              console.log(`[DIAGNÓSTICO] Resultado de executeCode:`, {
+                success: execution.success,
+                output: execution.output,
+                expected: testCase.expected_output,
+                error: execution.error
+              });
               
               const passed = execution.success && 
-                           execution.output && 
-                           execution.output.trim() === testCase.expected_output.trim();
-                           
-              console.log(`[DEBUG-TEST] Resultado: ${passed ? 'APROBADO' : 'FALLIDO'}`);
-              console.log(`[DEBUG-TEST] Salida obtenida: '${execution.output}'`);
-              if (execution.error) {
-                console.log(`[DEBUG-TEST] Error en ejecución: ${execution.error}`);
-              }
-              
-              if (passed) {
-                const caseScore = (answer.max_score / testCases.length) * (testCase.weight || 1);
-                console.log(`[DEBUG-TEST] ✅ Caso APROBADO. Puntos: ${caseScore}`);
-                passedCases++;
-                totalScore += caseScore;
-              } else {
-                console.log(`[DEBUG-TEST] ❌ Caso FALLIDO. Aplicando crédito parcial...`);
-                const partialCredit = calculateUniversalPartialCredit(answer.answer, testCase, answer.language);
-                const caseScore = (answer.max_score / testCases.length) * (partialCredit / 100) * (testCase.weight || 1);
-                console.log(`[DEBUG-TEST] Crédito parcial: ${partialCredit}%, Puntos: ${caseScore}`);
-                totalScore += caseScore;
-              }
-              
-              console.log(`[DEBUG-TEST] Puntaje acumulado: ${totalScore.toFixed(2)}/${answer.max_score}`);
+                            execution.output.trim() === testCase.expected_output.trim();
+              console.log(`[DIAGNÓSTICO] ¿Caso de prueba pasado?: ${passed}`);
+            
+            if (passed) {
+              passedCases++;
+              totalScore += (answer.max_score / testCases.length) * (testCase.weight || 1);
+            } else {
+              console.log(`[DIAGNÓSTICO] Aplicando crédito parcial para caso fallido`);
+              const partialCredit = calculateUniversalPartialCredit(answer.answer_text, testCase, answer.language);
+              console.log(`[DIAGNÓSTICO] Crédito parcial calculado: ${partialCredit}%`);
+              totalScore += (answer.max_score / testCases.length) * (partialCredit / 100);
+              console.log(`[DIAGNÓSTICO] Puntaje parcial actualizado: ${totalScore}`);
+            }
           }
 
-            const finalScore = Math.min(Math.round(totalScore * 100) / 100, answer.max_score);
+            const finalScore = Math.round(totalScore * 100) / 100;
             const percentage = Math.round((passedCases / testCases.length) * 100);
-            
-            console.log(`\n[DEBUG-EVAL] === RESULTADO FINAL ===`);
-            console.log(`[DEBUG-EVAL] Respuesta ID: ${answer.id}`);
-            console.log(`[DEBUG-EVAL] Casos pasados: ${passedCases}/${testCases.length}`);
-            console.log(`[DEBUG-EVAL] Puntaje final: ${finalScore}/${answer.max_score}`);
-            console.log(`[DEBUG-EVAL] Porcentaje: ${percentage}%`);
-            
-            console.log(`[DEBUG-EVAL] Actualizando base de datos...`);
+            console.log(`[DIAGNÓSTICO] Puntaje final: ${finalScore}, Porcentaje: ${percentage}%`);
+
             db.prepare(`
               UPDATE answers 
-              SET score = ?, 
-                  percentage_score = ?, 
-                  test_cases_passed = ?, 
-                  test_cases_total = ?,
-                  last_modified_at = datetime('now')
+              SET score = ?, percentage_score = ?, test_cases_passed = ?, test_cases_total = ?
               WHERE id = ?
             `).run(finalScore, percentage, passedCases, testCases.length, answer.id);
 
@@ -1422,11 +1064,8 @@ const evaluateCandidateAnswers = async (candidateId) => {
               score: finalScore, 
               passedCases, 
               totalCases: testCases.length,
-              method: 'automated_evaluation',
-              timestamp: new Date().toISOString()
+              method: 'automated_evaluation'
             });
-            
-            console.log(`[DEBUG-EVAL] Actualización completada para respuesta ID: ${answer.id}`);
             }
           
               evaluatedCount++;
@@ -1442,45 +1081,23 @@ const evaluateCandidateAnswers = async (candidateId) => {
 
 
       // Actualizar puntaje total de la sesión
-      const sessionId = answers[0]?.session_id;
-      console.log(`\n[DEBUG-SESSION] Actualizando puntaje de sesión ID: ${sessionId}`);
-      
+      const sessionId = answers[0].session_id;
       const totalScores = db.prepare(`
-        SELECT 
-          COALESCE(SUM(score), 0) as total_score, 
-          COALESCE(SUM(max_score), 0) as max_possible_score,
-          COUNT(*) as total_answers
-        FROM answers 
-        WHERE session_id = ?
+        SELECT SUM(score) as total_score, SUM(max_score) as max_possible_score
+        FROM answers WHERE session_id = ?
       `).get(sessionId);
-      
-      console.log(`[DEBUG-SESSION] Puntaje total: ${totalScores.total_score}/${totalScores.max_possible_score}`);
-      console.log(`[DEBUG-SESSION] Respuestas totales: ${totalScores.total_answers}`);
-      
+
       const percentage_score = totalScores.max_possible_score > 0 
-        ? Math.round((totalScores.total_score / totalScores.max_possible_score) * 10000) / 100
+        ? (totalScores.total_score / totalScores.max_possible_score) * 100 
         : 0;
-        
-      console.log(`[DEBUG-SESSION] Porcentaje final: ${percentage_score}%`);
 
-      console.log(`[DEBUG-SESSION] Actualizando test_sessions...`);
-      const updateResult = db.prepare(`
+      db.prepare(`
         UPDATE test_sessions 
-        SET
-          total_score = ?,
-          max_possible_score = ?,
-          percentage_score = ?
+        SET total_score = ?, max_possible_score = ?, percentage_score = ?
         WHERE id = ?
-      `).run(
-        totalScores.total_score, 
-        totalScores.max_possible_score, 
-        percentage_score, 
-        sessionId
-      );
-      
-      console.log(`[DEBUG-SESSION] Sesión actualizada. Filas afectadas: ${updateResult.changes}`);
+      `).run(totalScores.total_score, totalScores.max_possible_score, percentage_score, sessionId);
 
-      return {
+      res.json({
         success: true,
         candidateId,
         evaluated: evaluatedCount,
@@ -1488,131 +1105,15 @@ const evaluateCandidateAnswers = async (candidateId) => {
         maxPossibleScore: totalScores.max_possible_score,
         percentageScore: Math.round(percentage_score * 100) / 100,
         results
-      };
-    } catch (err) {
-      console.error('Error evaluando respuestas:', err);
-      return {
-        success: false,
-        error: err.message,
-        ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-      };
-    }
-};
-
-const updateSessionScore = (sessionId) => {
-  try {
-    const sessionData = db.prepare(`
-      SELECT 
-        COALESCE(SUM(score), 0) as total_score,
-        COALESCE(SUM(max_score), 0) as max_possible_score
-      FROM answers 
-      WHERE session_id = ?
-    `).get(sessionId);
-
-    if (sessionData) {
-      const percentage = sessionData.max_possible_score > 0 
-        ? Math.round((sessionData.total_score / sessionData.max_possible_score) * 100) 
-        : 0;
-      
-      const result = db.prepare(`
-        UPDATE test_sessions 
-        SET score = ?, percentage_score = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `).run(sessionData.total_score, percentage, sessionId);
-      
-      console.log(`[DEBUG-EVAL] Sesión ${sessionId} actualizada: ${sessionData.total_score}/${sessionData.max_possible_score} (${percentage}%)`);
-      
-      return {
-        success: true,
-        sessionId,
-        score: sessionData.total_score,
-        maxScore: sessionData.max_possible_score,
-        percentage
-      };
-    }
-    
-    return {
-      success: false,
-      error: 'No se encontraron datos para la sesión',
-      sessionId
-    };
-  } catch (error) {
-    console.error(`[DEBUG-EVAL] Error actualizando puntaje de sesión ${sessionId}:`, error);
-    return {
-      success: false,
-      error: error.message,
-      sessionId,
-      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
-    };
-  }
-};
-
-// Endpoint para evaluar respuestas de un candidato
-router.post('/evaluate-candidate/:candidateId', async (req, res) => {
-  try {
-    const candidateId = parseInt(req.params.candidateId);
-    
-    // Obtener la sesión activa del candidato
-    const session = db.prepare(`
-      SELECT * FROM test_sessions 
-      WHERE candidate_id = ? AND status = 'completed'
-      ORDER BY created_at DESC 
-      LIMIT 1
-    `).get(candidateId);
-    
-    if (!session) {
-      return res.status(404).json({
-        success: false,
-        error: 'No se encontró una sesión completada para este candidato'
       });
+
+    } catch (error) {
+      console.error('Error evaluando respuestas:', error);
+      res.status(500).json({ error: error.message, stack: error.stack });
     }
-    
-    console.log(`[DEBUG-ENDPOINT] Iniciando evaluación para candidato ${candidateId}, sesión ${session.id}`);
-    
-    // Evaluar respuestas
-    const result = await evaluateCandidateAnswers(candidateId);
-    
-    if (!result.success) {
-      console.error(`[DEBUG-ENDPOINT] Error en evaluateCandidateAnswers: ${result.error}`);
-      return res.status(500).json({
-        success: false,
-        error: 'Error al evaluar respuestas',
-        details: result.error,
-        ...(process.env.NODE_ENV === 'development' && { stack: result.stack })
-      });
-    }
-    
-    // Actualizar puntaje de la sesión
-    const updateResult = updateSessionScore(session.id);
-    
-    if (!updateResult.success) {
-      console.error(`[DEBUG-ENDPOINT] Error actualizando puntaje de sesión:`, updateResult.error);
-      // Continuamos a pesar del error, ya que la evaluación se completó
-    }
-    
-    console.log(`[DEBUG-ENDPOINT] Evaluación completada para candidato ${candidateId}`);
-    
-    res.json({
-      success: true,
-      message: 'Evaluación completada exitosamente',
-      sessionId: session.id,
-      candidateId,
-      sessionUpdate: updateResult,
-      ...result
-    });
-    
-  } catch (error) {
-    console.error('[EVAL-ERROR] Error en evaluación de candidato:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Error al evaluar respuestas',
-      details: error.message,
-      ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
-    });
-  }
   });
 
-// Endpoint para ver todos los lenguajes usados en el sistema
+  // Endpoint para ver todos los lenguajes usados en el sistema
   router.get('/debug/languages', (req, res) => {
     try {
       // Ver qué lenguajes están en las preguntas
@@ -1693,12 +1194,6 @@ router.post('/fix-sql-language', (req, res) => {
   }
 });
 
-// Exportar funciones para uso en otros módulos
-export { 
-  evaluateAnswer,
-  evaluateCandidateAnswers,
-  updateSessionScore,
-  executeCode
-};
+  export default router;
 
-export default router;
+  

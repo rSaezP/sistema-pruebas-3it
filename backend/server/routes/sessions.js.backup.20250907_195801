@@ -1,6 +1,5 @@
 import express from 'express';
 import { db } from '../database/init.js';
-import { evaluateAnswer, evaluateCandidateAnswers } from './candidates.js';
 
 const router = express.Router();
 
@@ -283,7 +282,7 @@ router.post('/:token/answer', (req, res) => {
 
 // Finish test session
 
-router.post('/:token/finish', async (req, res) => {
+router.post('/:token/finish', (req, res) => {
   try {
     const { token } = req.params;
     console.log('=== DEBUG FINISH ===');
@@ -322,66 +321,6 @@ router.post('/:token/finish', async (req, res) => {
     const values = [timestamp, timeSpentSeconds, token];
     console.log('Ejecutando UPDATE session...');
     db.prepare(updateQuery).run(...values);
-
-    // Evaluar todas las respuestas de esta sesión
-    console.log('=== INICIANDO EVALUACIÓN DE RESPUESTAS ===');
-    
-    // Obtener el ID del candidato para la sesión actual
-    const candidate = db.prepare('SELECT candidate_id FROM test_sessions WHERE id = ?').get(session.id);
-    
-    if (!candidate || !candidate.candidate_id) {
-      console.error('[ERROR] No se pudo obtener el ID del candidato');
-    } else {
-      try {
-        // Llamar a la función de evaluación
-        console.log(`[DEBUG] Iniciando evaluación para candidato: ${candidate.candidate_id}`);
-        const evaluationResult = await evaluateCandidateAnswers(candidate.candidate_id);
-        
-        if (!evaluationResult.success) {
-          console.error('[ERROR] Error en la evaluación:', evaluationResult.error);
-        } else {
-          console.log(`[DEBUG] Evaluación completada. Respuestas evaluadas: ${evaluationResult.evaluated}`);
-        }
-        
-        // Actualizar el puntaje de la sesión
-        db.prepare(`
-          UPDATE test_sessions 
-          SET total_score = (
-            SELECT COALESCE(SUM(score), 0) 
-            FROM answers 
-            WHERE session_id = ?
-          )
-          WHERE id = ?
-        `).run(session.id, session.id);
-        
-        // Calcular puntaje total de la sesión
-        const sessionScores = db.prepare(`
-          SELECT 
-            COALESCE(SUM(score), 0) as total_score,
-            COALESCE(SUM(q.max_score), 0) as max_possible_score
-          FROM answers a
-          JOIN questions q ON a.question_id = q.id
-          WHERE a.session_id = ?
-        `).get(session.id);
-        
-        const percentageScore = sessionScores.max_possible_score > 0 
-          ? (sessionScores.total_score / sessionScores.max_possible_score) * 100 
-          : 0;
-        
-        console.log(`[DEBUG] Puntaje total de la sesión: ${sessionScores.total_score}/${sessionScores.max_possible_score} (${percentageScore.toFixed(2)}%)`);
-          db.prepare(`
-        UPDATE test_sessions 
-        SET total_score = ?, percentage_score = ?
-        WHERE id = ?
-      `).run(sessionScores.total_score, percentageScore, session.id);        
-              
-       console.log('=== EVALUACIÓN COMPLETADA ===');
-        
-      } catch (error) {
-        console.error('[ERROR] Error durante la evaluación de respuestas:', error);
-        // No fallar la petición, solo registrar el error
-      }
-    }
 
     console.log('Ejecutando UPDATE candidate...');
     db.prepare('UPDATE candidates SET status = ?, updated_at = ? WHERE id = ?')

@@ -3,15 +3,15 @@ import { useAuthStore } from '@/stores/auth';
 
 export const authGuard = async (
   to: RouteLocationNormalized,
-  from: RouteLocationNormalized,
+  _from: RouteLocationNormalized,
   next: NavigationGuardNext
 ) => {
   const authStore = useAuthStore();
   
   // Check if the route requires authentication
   if (to.meta.requiresAuth) {
-    // Check if user is authenticated
-    const isAuthenticated = await authStore.checkAuth();
+    // Check if user is authenticated with Cognito
+    const isAuthenticated = authStore.isAuthenticated;
     
     if (!isAuthenticated) {
       // Redirect to login if not authenticated
@@ -20,15 +20,6 @@ export const authGuard = async (
         query: { redirect: to.fullPath }
       });
     }
-    
-    // Check for role-based access if required
-    if (to.meta.roles && to.meta.roles.length > 0) {
-      const userRole = authStore.user?.role;
-      if (!userRole || !to.meta.roles.includes(userRole)) {
-        // User doesn't have required role, redirect to dashboard or 403
-        return next({ name: 'dashboard' });
-      }
-    }
   }
   
   // Continue with the navigation
@@ -36,8 +27,8 @@ export const authGuard = async (
 };
 
 export const guestGuard = (
-  to: RouteLocationNormalized,
-  from: RouteLocationNormalized,
+  _to: RouteLocationNormalized,
+  _from: RouteLocationNormalized,
   next: NavigationGuardNext
 ) => {
   const authStore = useAuthStore();

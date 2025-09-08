@@ -12,14 +12,29 @@ const EditTestView = () => import('@/views/admin/EditTest.vue');
 const CandidatesView = () => import('@/views/admin/Candidates.vue');
 const ReportsView = () => import('@/views/admin/Reports.vue');
 
+// Auth Views
+const LoginView = () => import('@/views/Login.vue');
+const CallbackView = () => import('@/views/auth/CallbackView.vue');
+
 // Public Views
 const TestView = () => import('@/views/TestView.vue');
 const TestCompletedView = () => import('@/views/TestCompleted.vue');
 
 const routes: Array<RouteRecordRaw> = [
   {
+    path: '/login',
+    name: 'login',
+    component: LoginView
+  },
+  {
+    path: '/callback',
+    name: 'callback',
+    component: CallbackView
+  },
+  {
     path: '/admin',
     component: AdminLayout,
+    meta: { requiresAuth: true },
     children: [
       {
         path: '',
@@ -28,39 +43,46 @@ const routes: Array<RouteRecordRaw> = [
       {
         path: 'dashboard',
         name: 'dashboard',
-        component: DashboardView
+        component: DashboardView,
+        meta: { requiresAuth: true }
       },
       {
         path: 'tests',
         name: 'tests',
-        component: TestsListView
+        component: TestsListView,
+        meta: { requiresAuth: true }
       },
       {
         path: 'tests/create',
         name: 'create-test',
-        component: CreateTestView
+        component: CreateTestView,
+        meta: { requiresAuth: true }
       },
       {
         path: 'tests/:id/edit',
         name: 'edit-test',
         component: EditTestView,
-        props: true
+        props: true,
+        meta: { requiresAuth: true }
       },
       {
         path: 'candidates',
         name: 'candidates',
-        component: CandidatesView
+        component: CandidatesView,
+        meta: { requiresAuth: true }
       },
       {
         path: 'reports',
         name: 'reports',
-        component: ReportsView
+        component: ReportsView,
+        meta: { requiresAuth: true }
       },
       {
         path: 'reports/:sessionId',
         name: 'session-report',
         component: ReportsView,
-        props: true
+        props: true,
+        meta: { requiresAuth: true }
       }
     ]
   },
@@ -85,11 +107,11 @@ const routes: Array<RouteRecordRaw> = [
   },
   {
     path: '/',
-    redirect: '/admin/dashboard'
+    redirect: '/login'
   },
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/admin/dashboard'
+    redirect: '/login'
   }
 ];
 
@@ -101,6 +123,18 @@ const router = createRouter({
   }
 });
 
-// Removed auth guard since we're not using authentication
+// Import and configure auth guards
+import { authGuard, guestGuard } from './guards';
+
+// Add auth guard to router
+router.beforeEach(authGuard);
+
+// Add guest guard for login routes
+router.beforeEach((to, from, next) => {
+  if (to.name === 'login') {
+    return guestGuard(to, from, next);
+  }
+  next();
+});
 
 export default router;

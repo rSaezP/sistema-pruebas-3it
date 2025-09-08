@@ -1,49 +1,66 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { loginWithCognito } from '@/auth/authService';
+import { logoutFromCognito } from '@/auth/logout';
+import { handleCallback } from '@/auth/handleCallback';
+import { getUserInfo, getUserName as getCognitoUserName, isAuthenticated as isCognitoAuthenticated } from '@/auth/getUserInfo';
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref(localStorage.getItem('auth_token'));
   const user = ref(null);
+  const accessToken = ref(localStorage.getItem('access_token'));
 
-  const isAuthenticated = computed(() => !!token.value);
+  const isAuthenticated = computed(() => isCognitoAuthenticated());
 
-  const login = async (username: string, password: string) => {
+  const initializeAuth = () => {
+    if (isCognitoAuthenticated()) {
+      user.value = getUserInfo();
+      accessToken.value = localStorage.getItem('access_token');
+    }
+  };
+
+  const loginCognito = async () => {
+    await loginWithCognito();
+  };
+
+  const handleAuthCallback = async () => {
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ username, password })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        token.value = data.token;
-        user.value = data.user;
-        localStorage.setItem('auth_token', data.token);
+      const tokens = await handleCallback();
+      if (tokens) {
+        accessToken.value = tokens.access_token;
+        user.value = getUserInfo();
         return { success: true };
-      } else {
-        return { success: false, error: data.error };
       }
+      return { success: false, error: 'No se pudieron obtener los tokens' };
     } catch (error) {
-      console.error('Error en login:', error);
-      return { success: false, error: 'Error de conexión' };
+      console.error('Error en callback:', error);
+      return { success: false, error: 'Error en autenticación' };
     }
   };
 
   const logout = () => {
-    token.value = null;
-    user.value = null;
-    localStorage.removeItem('auth_token');
+    logoutFromCognito();
   };
 
+  const checkAuthStatus = async () => {
+    return isCognitoAuthenticated();
+  };
+
+  const getUserName = () => {
+    return getCognitoUserName();
+  };
+
+  // Initialize auth on store creation
+  initializeAuth();
+
   return {
-    token,
     user,
+    accessToken,
     isAuthenticated,
-    login,
-    logout
+    loginCognito,
+    handleAuthCallback,
+    logout,
+    checkAuth: checkAuthStatus,
+    getUserName,
+    initializeAuth
   };
 });
