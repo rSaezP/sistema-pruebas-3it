@@ -193,16 +193,29 @@ const router = useRouter()
 // Auth store
 const authStore = useAuthStore()
 
-// User data from Cognito
+// User data from Cognito - Reactive to auth changes
 const user = computed(() => {
-  const userName = authStore.getUserName()
-  const userInfo = authStore.user as any
+  // Force reactivity by checking auth state
+  const isAuth = authStore.isAuthenticated;
+  if (!isAuth) {
+    return {
+      name: 'Usuario',
+      email: 'usuario@email.com', 
+      role: 'Administrador',
+      avatar: ''
+    };
+  }
+
+  // Get fresh user data
+  const userName = authStore.getUserName();
+  const userInfo = authStore.user as any;
+  
   return {
-    name: userName || userInfo?.name || 'Usuario',
-    email: userInfo?.email || 'usuario@email.com',
+    name: userName || userInfo?.name || userInfo?.email || 'Usuario Cognito',
+    email: userInfo?.email || userInfo?.username || 'cognito@usuario.com',
     role: 'Administrador',
     avatar: userInfo?.picture || ''
-  }
+  };
 })
 
 // UI State

@@ -32,8 +32,13 @@ onMounted(async () => {
     const result = await authStore.handleAuthCallback();
     
     if (result.success) {
-      // Redirect to dashboard after successful authentication
-      router.push('/admin/dashboard');
+      // Force auth store to refresh user data
+      authStore.initializeAuth();
+      
+      // Small delay to ensure state is updated
+      setTimeout(() => {
+        router.push('/admin/dashboard');
+      }, 100);
     } else {
       error.value = result.error || 'Error en la autenticación';
       loading.value = false;

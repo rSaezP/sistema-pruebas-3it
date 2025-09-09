@@ -13,8 +13,13 @@ export const useAuthStore = defineStore('auth', () => {
 
   const initializeAuth = () => {
     if (isCognitoAuthenticated()) {
-      user.value = getUserInfo();
+      const userInfo = getUserInfo();
+      console.log('Initializing auth with user info:', userInfo); // Debug
+      user.value = userInfo;
       accessToken.value = localStorage.getItem('access_token');
+    } else {
+      user.value = null;
+      accessToken.value = null;
     }
   };
 
@@ -27,7 +32,9 @@ export const useAuthStore = defineStore('auth', () => {
       const tokens = await handleCallback();
       if (tokens) {
         accessToken.value = tokens.access_token;
-        user.value = getUserInfo();
+        const userInfo = getUserInfo();
+        console.log('Setting user info after callback:', userInfo); // Debug
+        user.value = userInfo;
         return { success: true };
       }
       return { success: false, error: 'No se pudieron obtener los tokens' };

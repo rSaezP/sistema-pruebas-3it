@@ -52,7 +52,8 @@
       <header class="main-header">
         <h1>Sistema de Pruebas Técnicas 3IT</h1>
         <div class="user-info">
-          <span>Administrador</span>
+          <span>Bienvenido</span>
+          <small>{{ userEmail }}</small>
         </div>
       </header>
       
@@ -64,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useAuthStore } from '../stores/auth';
 
 const authStore = useAuthStore();
@@ -73,6 +74,13 @@ const sidebarCollapsed = ref(false);
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value;
 };
+
+// Get user info from Cognito
+const userEmail = computed(() => {
+  const userInfo = authStore.user as any;
+  // Solo el email, no el nombre de usuario
+  return userInfo?.email || 'usuario@email.com';
+});
 </script>
 
 <style scoped>
@@ -193,10 +201,22 @@ const toggleSidebar = () => {
 
 .user-info {
   display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-1);
   font-weight: 500;
   color: var(--azul-tritiano);
+}
+
+.user-info span {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+}
+
+.user-info small {
+  font-size: var(--font-size-sm);
+  color: #6B7280;
+  opacity: 0.8;
 }
 
 .content {

@@ -4,7 +4,12 @@ export function getUserName(): string | null {
 
   try {
     const payload = JSON.parse(atob(idToken.split('.')[1]));
-    return payload.name || payload.email || null;
+    // Try multiple fields to get the best display name
+    return payload.name || 
+           payload.given_name || 
+           payload.email || 
+           payload['cognito:username'] || 
+           'Usuario';
   } catch (error) {
     console.error('Error parsing token:', error);
     return null;
@@ -17,7 +22,18 @@ export function getUserInfo(): any | null {
 
   try {
     const payload = JSON.parse(atob(idToken.split('.')[1]));
-    return payload;
+    console.log('User token payload:', payload); // Debug
+    
+    // Cognito tokens typically contain: email, name, given_name, family_name, etc.
+    return {
+      email: payload.email || payload['cognito:username'],
+      name: payload.name || payload.given_name || payload['cognito:username'] || payload.email,
+      given_name: payload.given_name,
+      family_name: payload.family_name,
+      picture: payload.picture,
+      username: payload['cognito:username'],
+      ...payload // Include all original payload data
+    };
   } catch (error) {
     console.error('Error parsing token:', error);
     return null;
