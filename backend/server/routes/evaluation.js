@@ -1,43 +1,53 @@
 import express from 'express';
 import { db } from '../database/init.js';
+import { LanguageEvaluators } from '../evaluators/LanguageEvaluators.js';
 
 const router = express.Router();
 
-// Simple code execution simulation (in production, use a proper sandbox)
-const executeCode = (code, testCase, language) => {
+// Use the advanced LanguageEvaluators system
+const executeCode = async (code, testCase, language) => {
   try {
-    // This is a simplified version - in production you'd use a proper sandbox
-    if (language === 'javascript') {
-      // Create a safe evaluation context
-      const func = new Function('return ' + code)();
-      const input = JSON.parse(testCase.input_data);
-      const result = func(input);
-      return {
-        success: true,
-        output: String(result),
-        executionTime: Math.random() * 100 // Mock execution time
-      };
-    }
+    console.log(`[EVAL-UNIFIED] Ejecutando evaluación para ${language}`);
+    
+    const evaluator = LanguageEvaluators.getEvaluator(language);
+    const result = await evaluator.evaluate(code, testCase, language);
+    
+    console.log(`[EVAL-UNIFIED] Resultado:`, result);
     
     return {
-      success: false,
-      output: '',
-      error: 'Lenguaje no soportado'
+      success: result.success,
+      output: result.output,
+      error: result.errors?.join(', ') || null,
+      executionTime: result.executionTime || 0
     };
   } catch (error) {
+    console.log(`[EVAL-UNIFIED] Error:`, error.message);
     return {
       success: false,
       output: '',
-      error: error.message
+      error: error.message,
+      executionTime: 0
     };
   }
 };
 
 // Evaluate code answer
-router.post('/code', (req, res) => {
+router.post('/code', async (req, res) => {
   const { sessionToken, questionId, code } = req.body;
 
+  // DEBUG: Ver qué está llegando
+  console.log('=== DEBUG EVALUATION ENDPOINT ===');
+  console.log('Body completo:', req.body);
+  console.log('sessionToken:', sessionToken, 'tipo:', typeof sessionToken);
+  console.log('questionId:', questionId, 'tipo:', typeof questionId);  
+  console.log('code:', code, 'tipo:', typeof code);
+  console.log('=================================');
+
   if (!sessionToken || !questionId || !code) {
+    console.log('❌ DATOS INCOMPLETOS - Falló la validación');
+    console.log('sessionToken válido:', !!sessionToken);
+    console.log('questionId válido:', !!questionId);
+    console.log('code válido:', !!code);
     return res.status(400).json({ error: 'Datos incompletos' });
   }
 
@@ -49,39 +59,42 @@ router.post('/code', (req, res) => {
     WHERE ts.token = ? AND q.id = ?
   `;
 
-  db.get(sessionQuery, [questionId, sessionToken, questionId], (err, data) => {
-    if (err) {
-      console.error('Error al obtener datos:', err);
-      return res.status(500).json({ error: 'Error al obtener datos' });
-    }
-
+  try {
+    const data = db.prepare(sessionQuery).get(questionId, sessionToken, questionId);
+    
     if (!data) {
       return res.status(404).json({ error: 'Sesión o pregunta no encontrada' });
     }
 
-    // Get test cases for this question
-    db.all('SELECT * FROM test_cases WHERE question_id = ?', [questionId], (err, testCases) => {
-      if (err) {
-        console.error('Error al obtener casos de prueba:', err);
-        return res.status(500).json({ error: 'Error al obtener casos de prueba' });
-      }
+    console.log('[EVAL-UNIFIED] Sesión y pregunta encontradas:', { 
+      session_id: data.id, 
+      question_id: questionId,
+      language: data.language 
+    });
 
-      if (testCases.length === 0) {
-        return res.json({
-          success: true,
-          score: data.max_score,
-          results: [],
-          message: 'No hay casos de prueba definidos'
-        });
-      }
+    // Get test cases for this question
+    const testCases = db.prepare('SELECT * FROM test_cases WHERE question_id = ?').all(questionId);
+    
+    if (testCases.length === 0) {
+      return res.json({
+        success: true,
+        score: data.max_score,
+        results: [],
+        message: 'No hay casos de prueba definidos'
+      });
+    }
+
+    console.log(`[EVAL-UNIFIED] Casos de prueba encontrados: ${testCases.length}`);
 
       // Execute code against all test cases
       const results = [];
       let passedCases = 0;
       let totalScore = 0;
 
-      testCases.forEach((testCase, index) => {
-        const execution = executeCode(code, testCase, data.language);
+      // Process test cases sequentially since they're async now
+      for (let i = 0; i < testCases.length; i++) {
+        const testCase = testCases[i];
+        const execution = await executeCode(code, testCase, data.language);
         
         const passed = execution.success && 
                       execution.output.trim() === testCase.expected_output.trim();
@@ -101,48 +114,51 @@ router.post('/code', (req, res) => {
           executionTime: execution.executionTime,
           isHidden: testCase.is_hidden
         });
-      });
+      }
 
       const finalScore = Math.round(totalScore * 100) / 100;
       const percentage = Math.round((passedCases / testCases.length) * 100);
 
-      // Update answer with evaluation results
-      const updateAnswerQuery = `
-        UPDATE answers 
-        SET score = ?, 
-            percentage_score = ?,
-            test_cases_passed = ?,
-            test_cases_total = ?,
-            compilation_successful = 1,
-            execution_successful = 1
-        WHERE session_id = ? AND question_id = ?
-      `;
+    // Update answer with evaluation results
+    const updateAnswerQuery = `
+      UPDATE answers 
+      SET score = ?, 
+          percentage_score = ?,
+          test_cases_passed = ?,
+          test_cases_total = ?,
+          compilation_successful = 1,
+          execution_successful = 1
+      WHERE session_id = ? AND question_id = ?
+    `;
 
-      db.run(updateAnswerQuery, [
-        finalScore,
-        percentage,
-        passedCases,
-        testCases.length,
-        data.id,
-        questionId
-      ], (err) => {
-        if (err) {
-          console.error('Error al actualizar respuesta:', err);
-          return res.status(500).json({ error: 'Error al actualizar evaluación' });
-        }
+    db.prepare(updateAnswerQuery).run(
+      finalScore,
+      percentage,
+      passedCases,
+      testCases.length,
+      data.id,
+      questionId
+    );
 
-        res.json({
-          success: true,
-          score: finalScore,
-          maxScore: data.max_score,
-          percentage,
-          passedCases,
-          totalCases: testCases.length,
-          results: results.filter(r => !r.isHidden) // Only return non-hidden results
-        });
-      });
+    console.log(`[EVAL-UNIFIED] Evaluación completada: ${passedCases}/${testCases.length} casos pasados, puntaje: ${finalScore}/${data.max_score}`);
+
+    res.json({
+      success: true,
+      score: finalScore,
+      maxScore: data.max_score,
+      percentage,
+      passedCases,
+      totalCases: testCases.length,
+      results: results.filter(r => !r.isHidden) // Only return non-hidden results
     });
-  });
+
+  } catch (error) {
+    console.error('Error en evaluation/code:', error);
+    res.status(500).json({ 
+      error: 'Error interno del servidor',
+      message: error.message
+    });
+  }
 });
 
 // Evaluate multiple choice answer

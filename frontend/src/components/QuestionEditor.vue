@@ -320,6 +320,13 @@ watch(() => props.modelValue, (newValue) => {
       questionData.value.test_cases = []
     }
     
+    // AUTO-ASSIGN CORRECT LANGUAGE BASED ON TYPE
+    if (questionData.value.type === 'sql') {
+      questionData.value.language = 'sql'
+    } else if (questionData.value.type === 'programming' && !questionData.value.language) {
+      questionData.value.language = 'javascript'
+    }
+    
     // Initialize test cases for SQL if empty
     if (questionData.value.type === 'sql' && questionData.value.test_cases.length === 0) {
       questionData.value.test_cases = [{
@@ -352,6 +359,16 @@ watch(() => props.modelValue, (newValue) => {
     }
   }
 }, { immediate: true })
+
+// Watch for type changes to auto-assign correct language
+watch(() => questionData.value.type, (newType) => {
+  if (newType === 'sql') {
+    questionData.value.language = 'sql'
+  } else if (newType === 'programming' && questionData.value.language === 'sql') {
+    // Reset to javascript if changing from SQL to programming
+    questionData.value.language = 'javascript'
+  }
+})
 
 // Watch changes and emit to parent
 watch(questionData, (newData) => {

@@ -937,7 +937,7 @@ async function evaluateAnswer(answer) {
 
     let testCases = [];
     try {
-      testCases = JSON.parse(question.test_cases || '[]');
+      testCases = db.prepare('SELECT * FROM test_cases WHERE question_id = ?').all(question.id);
     } catch (e) {
       console.error(`[DEBUG-EVAL] Error al analizar test cases para pregunta ${question.id}:`, e);
       testCases = [];
@@ -953,7 +953,7 @@ async function evaluateAnswer(answer) {
     // Si no hay test cases, asignar puntaje máximo si hay respuesta
     if (testCases.length === 0) {
       console.log(`[DEBUG-EVAL] Sin test cases, verificando respuesta`);
-      const hasAnswer = answer.answer && answer.answer.trim() !== '';
+      const hasAnswer = answer.answer_text && answer.answer_text.trim() !== '';
       const score = hasAnswer ? (question.max_score || 1) : 0;
       
       db.prepare(`
@@ -1125,13 +1125,12 @@ router.post('/evaluate-answers/:candidateId', async (req, res) => {
       console.log(`[DEBUG-EVAL] Candidato: ${candidate.name} ${candidate.lastname} (ID: ${candidateId})`);
       
       // Obtener todas las respuestas del candidato (incluyendo las ya evaluadas)
-      const answers = db.prepare(`
-        SELECT a.*, q.language, q.max_score, q.type, q.test_cases, ts.id as session_id
+        const answers = db.prepare(`
+        SELECT a.*, q.language, q.max_score, q.type, ts.id as session_id
         FROM answers a
         JOIN questions q ON a.question_id = q.id
         JOIN test_sessions ts ON a.session_id = ts.id
         WHERE ts.candidate_id = ?
-        ORDER BY a.id
       `).all(candidateId);
       
       console.log(`[DEBUG-EVAL] Respuestas encontradas: ${answers.length}`);
@@ -1153,7 +1152,7 @@ router.post('/evaluate-answers/:candidateId', async (req, res) => {
       const results = [];
       
       // Obtener el evaluador una sola vez para optimización
-      const LanguageEvaluators = (await import('./evaluators/LanguageEvaluators.js')).default;
+      const LanguageEvaluators = (await import('../evaluators/LanguageEvaluators.js')).default;
       
       // Función para ejecutar código
       const executeCode = async (code, testCase, language) => {
@@ -1239,14 +1238,12 @@ router.post('/evaluate-answers/:candidateId', async (req, res) => {
       
       // Actualizar el puntaje total de la sesión
       if (sessionId) {
-        db.prepare(`
+          db.prepare(`
           UPDATE test_sessions 
-          SET score = ?, 
-              percentage_score = ?,
-              updated_at = ?
+          SET percentage_score = ?,
+              finished_at = ?
           WHERE id = ?
         `).run(
-          totalScore,
           percentageScore,
           new Date().toISOString(),
           sessionId
@@ -1331,7 +1328,8 @@ const evaluateCandidateAnswers = async (candidateId) => {
     for (const answer of answers) {
       console.log(`\n[DEBUG-EVAL] --- Respuesta ID: ${answer.id} ---`);
       console.log(`[DEBUG-EVAL] Tipo: ${answer.type}, Lenguaje: ${answer.language}, Pregunta ID: ${answer.question_id}`);
-      console.log(`[DEBUG-EVAL] Código (inicio): ${answer.answer ? answer.answer.substring(0, 100) : 'Sin respuesta'}...`);
+      const codeForLog = (answer.answer_text || answer.answer || '');
+      console.log(`[DEBUG-EVAL] Código (inicio): ${codeForLog ? codeForLog.substring(0, 100) : 'Sin respuesta'}...`);
       
       try {
         // Obtener casos de prueba para esta pregunta
