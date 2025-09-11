@@ -122,7 +122,7 @@
   import { ref, onMounted, nextTick } from 'vue';
   import { useRoute, useRouter } from 'vue-router';
   import { useToast } from 'vue-toastification';
-  import CodeEditor from '../../components/CodeEditor.vue'
+  import AdminCodeEditor from '../../components/AdminCodeEditor.vue'
   import QuestionEditor from '../../components/QuestionEditor.vue';
 
   // Definir interfaces para TypeScript

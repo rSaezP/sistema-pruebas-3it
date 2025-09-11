@@ -9,7 +9,7 @@ export class LanguageEvaluators {
   static getEvaluator(language) {
     console.log(`[DEBUG-EVAL] 🔍 Buscando evaluador para: '${language}'`);
     const languageKey = language?.toLowerCase() || 'unknown';
-    const EvaluatorClass = this.evaluators.get(languageKey) || GenericTextEvaluator;
+    const EvaluatorClass = UniversalEvaluator;
     const evaluator = new EvaluatorClass();
     console.log(`[DEBUG-EVAL] ✅ Evaluador seleccionado: ${evaluator.constructor.name} para '${languageKey}'`);
     return evaluator;
@@ -720,6 +720,7 @@ class GenericTextEvaluator extends BaseEvaluator {
     };
   }
 }
+ import UniversalEvaluator from './UniversalEvaluator.js';
 
 // Registrar todos los evaluadores disponibles
 console.log('[DEBUG-EVAL] 🔄 Registrando evaluadores...');

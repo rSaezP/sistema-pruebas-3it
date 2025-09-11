@@ -68,7 +68,7 @@
 
         <div class="form-group">
           <label for="initial_code">Código Inicial (opcional)</label>
-          <CodeEditor
+          <AdminCodeEditor
             ref="codeEditorRef"
             :language="questionData.language"
             v-model="questionData.initial_code"
@@ -79,7 +79,7 @@
 
         <div class="form-group">
           <label for="expected_solution">Solución Esperada *</label>
-          <CodeEditor
+          <AdminCodeEditor
             ref="solutionEditorRef"
             :language="questionData.language"
             v-model="questionData.expected_solution"
@@ -115,7 +115,7 @@
 
         <div class="form-group">
           <label for="correct_answer">Consulta SQL Correcta</label>
-          <CodeEditor
+          <AdminCodeEditor
             ref="sqlEditorRef"
             language="sql"
             v-model="questionData.correct_answer"
@@ -189,7 +189,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import CodeEditor from './CodeEditor.vue'
+import AdminCodeEditor from './AdminCodeEditor.vue'
 import LanguageSelector from './LanguageSelector.vue'
 import TestCaseEditor from './TestCaseEditor.vue'
 import type { Question, TestCase, MultipleChoiceOption } from '../types'
