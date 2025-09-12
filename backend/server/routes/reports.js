@@ -39,6 +39,37 @@ router.get('/dashboard', (req, res) => {
     const sessions = db.prepare(recentSessionsQuery).all();
     results.recentSessions = sessions || [];
     
+    // Get performance by test (real data)
+    const performanceQuery = `
+      SELECT t.name as test_name, 
+             AVG(ts.percentage_score) as avg_score,
+             COUNT(ts.id) as total_sessions
+      FROM tests t
+      LEFT JOIN test_sessions ts ON t.id = ts.test_id AND ts.status = 'completed'
+      GROUP BY t.id, t.name
+      ORDER BY t.name
+    `;
+    const performanceData = db.prepare(performanceQuery).all();
+    results.performanceByTest = performanceData || [];
+    
+    // Get skills analysis by category (real data)
+    const skillsQuery = `
+      SELECT c.name as skill_name,
+             c.color as skill_color,
+             AVG(a.percentage_score) as avg_score,
+             COUNT(DISTINCT a.session_id) as tested_count
+      FROM categories c
+      LEFT JOIN questions q ON c.id = q.category_id
+      LEFT JOIN answers a ON q.id = a.question_id
+      LEFT JOIN test_sessions ts ON a.session_id = ts.id AND ts.status = 'completed'
+      WHERE a.percentage_score IS NOT NULL
+      GROUP BY c.id, c.name, c.color
+      HAVING tested_count > 0
+      ORDER BY c.name
+    `;
+    const skillsData = db.prepare(skillsQuery).all();
+    results.skillsAnalysis = skillsData || [];
+    
     res.json(results);
     
   } catch (error) {

@@ -11,6 +11,7 @@ const CreateTestView = () => import('@/views/admin/CreateTest.vue');
 const EditTestView = () => import('@/views/admin/EditTest.vue');
 const CandidatesView = () => import('@/views/admin/Candidates.vue');
 const ReportsView = () => import('@/views/admin/Reports.vue');
+const ReportDetailView = () => import('@/views/admin/ReportDetail.vue');
 
 // Auth Views
 const LoginView = () => import('@/views/Login.vue');
@@ -80,7 +81,7 @@ const routes: Array<RouteRecordRaw> = [
       {
         path: 'reports/:sessionId',
         name: 'session-report',
-        component: ReportsView,
+        component: ReportDetailView,
         props: true,
         meta: { requiresAuth: true }
       }

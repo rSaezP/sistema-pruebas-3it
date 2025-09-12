@@ -275,17 +275,18 @@ const fetchReportData = async () => {
         score: Math.round(session.percentage_score || 0),
         status: session.status === 'completed' ? 'evaluated' : 'pending_review'
       }))
+      
+      // Set real skills analysis data from API
+      skillsAnalysis.value = (data.skillsAnalysis || []).map((skill: any) => ({
+        name: skill.skill_name,
+        averageScore: Math.round(skill.avg_score || 0),
+        testedCount: skill.tested_count || 0,
+        color: skill.skill_color || '#005AEE'
+      }))
+      
+      // Store performance data for charts
+      window.performanceData = data.performanceByTest || []
     }
-    
-    // Mock skills analysis data
-    skillsAnalysis.value = [
-      { name: 'JavaScript', averageScore: 78, testedCount: 45 },
-      { name: 'React', averageScore: 72, testedCount: 38 },
-      { name: 'Node.js', averageScore: 65, testedCount: 32 },
-      { name: 'HTML/CSS', averageScore: 82, testedCount: 41 },
-      { name: 'Base de Datos', averageScore: 68, testedCount: 29 },
-      { name: 'Algoritmos', averageScore: 71, testedCount: 36 }
-    ]
 
     // Initialize charts after data is loaded
     setTimeout(() => {
@@ -310,13 +311,17 @@ const initCharts = async () => {
     if (performanceChart.value) {
       const ctx = performanceChart.value.getContext('2d')
       if (ctx) {
+        const performanceData = window.performanceData || []
+        const labels = performanceData.map(item => item.test_name || 'Sin nombre')
+        const scores = performanceData.map(item => Math.round(item.avg_score || 0))
+        
         performanceChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
-          labels: ['JavaScript', 'React', 'Node.js', 'HTML/CSS', 'Base de Datos', 'Algoritmos'],
+          labels: labels.length > 0 ? labels : ['Sin datos'],
           datasets: [{
             label: 'Puntuación Promedio',
-            data: [78, 72, 65, 82, 68, 71],
+            data: scores.length > 0 ? scores : [0],
             backgroundColor: 'rgba(0, 90, 238, 0.7)',
             borderColor: 'rgba(0, 90, 238, 1)',
             borderWidth: 1
