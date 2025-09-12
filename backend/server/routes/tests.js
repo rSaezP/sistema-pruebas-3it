@@ -44,7 +44,6 @@ router.get('/:id', (req, res) => {
   FROM questions q
   LEFT JOIN categories c ON q.category_id = c.id
   WHERE q.test_id = ? 
-    AND q.id IN (1,2,3,4,5)
   ORDER BY q.order_index
 `;
 

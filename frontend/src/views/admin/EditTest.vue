@@ -190,7 +190,7 @@
   };
 
   const updateTest = async (id: any, data: any) => {
-    const response = await fetch(`/api/tests/${id}`, {
+    const response = await fetch(`http://localhost:4000/api/tests/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -200,7 +200,7 @@
   };
 
   const deleteTest = async (id: any) => {
-    const response = await fetch(`/api/tests/${id}`, { method: 'DELETE' });
+    const response = await fetch(`http://localhost:4000/api/tests/${id}`, { method: 'DELETE' });
     if (!response.ok) throw new Error('Error al eliminar la prueba');
     return response.json();
   };

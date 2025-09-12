@@ -722,23 +722,7 @@ class GenericTextEvaluator extends BaseEvaluator {
 }
  import UniversalEvaluator from './UniversalEvaluator.js';
 
-// Registrar todos los evaluadores disponibles
-console.log('[DEBUG-EVAL] 🔄 Registrando evaluadores...');
-const evaluators = [
-  { lang: 'tlang', evaluator: TLangEvaluator },
-  { lang: 'javascript', evaluator: JavaScriptEvaluator },
-  { lang: 'js', evaluator: JavaScriptEvaluator },
-  { lang: 'sql', evaluator: SQLEvaluator },
-  { lang: 'mysql', evaluator: SQLEvaluator },
-  { lang: 'postgresql', evaluator: SQLEvaluator },
-  { lang: 'python', evaluator: PythonEvaluator },
-  { lang: 'python3', evaluator: PythonEvaluator }
-];
-
-evaluators.forEach(({ lang, evaluator }) => {
-  LanguageEvaluators.registerEvaluator(lang, evaluator);
-  console.log(`[DEBUG-EVAL]   - Registrado: ${evaluator.name} para '${lang}'`);
-});
-
-console.log('[DEBUG-EVAL] ✅ Todos los evaluadores han sido registrados');
+// Sistema Universal - Todos los lenguajes usan UniversalEvaluator
+console.log('[DEBUG-EVAL] 🚀 Sistema UniversalEvaluator activado');
+console.log('[DEBUG-EVAL] ✅ Todos los lenguajes serán evaluados con UniversalEvaluator');
 

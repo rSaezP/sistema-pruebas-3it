@@ -20,7 +20,7 @@ async function executeCode(code, testCase, language) {
     
     if (evaluator) {
       console.log(`[DEBUG-EXEC] Evaluador encontrado para ${language}`);
-      const result = await evaluator.evaluate(code, testCase);
+      const result = await evaluator.evaluate(code, testCase, language);
       console.log(`[DEBUG-EXEC] Resultado:`, result);
       return result;
     } else {

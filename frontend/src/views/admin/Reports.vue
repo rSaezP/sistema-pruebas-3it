@@ -25,12 +25,6 @@
             </button>
           </div>
         </div>
-        <button 
-          class="btn-primary"
-          @click="exportReport"
-        >
-          📥 Exportar PDF
-        </button>
       </div>
     </div>
 
@@ -258,7 +252,7 @@ const applyDateRange = () => {
 const fetchReportData = async () => {
   try {
     // Fetch dashboard stats
-    const response = await fetch('/api/reports/dashboard')
+    const response = await fetch('http://localhost:4000/api/reports/dashboard')
     if (response.ok) {
       const data = await response.json()
       stats.value = {
@@ -427,10 +421,6 @@ const viewAllTests = () => {
   router.push('/admin/tests')
 }
 
-const exportReport = () => {
-  toast.info('Función de exportación a PDF en desarrollo')
-  // In a real app, this would generate and download a PDF report
-}
 
 // Lifecycle
 onMounted(() => {
