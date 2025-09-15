@@ -132,11 +132,46 @@
               
               <div class="answer-content">
                 <h4>Respuesta del Candidato:</h4>
+                
+                <!-- Programming/Code questions -->
                 <div class="code-block" v-if="answer.type === 'programming' || answer.type === 'code'">
                   <pre><code>{{ answer.answer_text || 'No respondió' }}</code></pre>
                 </div>
+                
+                <!-- Multiple Choice questions -->
+                <div v-else-if="answer.type === 'multiple_choice'" class="multiple-choice-answer">
+                  <div class="selected-answer" :class="{ 'correct': answer.is_correct, 'incorrect': !answer.is_correct }">
+                    <strong>Seleccionada:</strong> {{ answer.formatted_answer || 'No respondió' }}
+                    <span class="result-icon">{{ answer.is_correct ? '✅' : '❌' }}</span>
+                  </div>
+                  
+                  <div v-if="!answer.is_correct && answer.correct_option_text" class="correct-answer">
+                    <strong>Respuesta correcta:</strong> {{ answer.correct_option_text }}
+                  </div>
+                  
+                  <!-- Show all options for context -->
+                  <div v-if="answer.all_options" class="all-options">
+                    <h5>Todas las opciones:</h5>
+                    <ul class="options-list">
+                      <li 
+                        v-for="(option, index) in answer.all_options" 
+                        :key="index"
+                        :class="{ 
+                          'selected': answer.answer_text === index.toString(),
+                          'correct': answer.correct_answer === index.toString() 
+                        }"
+                      >
+                        {{ String.fromCharCode(65 + index) }}) {{ option.text }}
+                        <span v-if="answer.correct_answer === index.toString()" class="correct-mark">✓</span>
+                        <span v-if="answer.answer_text === index.toString()" class="selected-mark">← Seleccionada</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+                
+                <!-- Other question types -->
                 <div class="text-answer" v-else>
-                  <p>{{ answer.answer_text || answer.selected_option || 'No respondió' }}</p>
+                  <p>{{ answer.formatted_answer || answer.answer_text || 'No respondió' }}</p>
                 </div>
               </div>
 
@@ -698,5 +733,101 @@ onMounted(() => {
   .score-info {
     text-align: left;
   }
+}
+
+/* Estilos para respuestas de selección múltiple */
+.multiple-choice-answer {
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 16px;
+  background: #F9FAFB;
+}
+
+.selected-answer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.selected-answer.correct {
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  color: #065F46;
+}
+
+.selected-answer.incorrect {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  color: #991B1B;
+}
+
+.result-icon {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.correct-answer {
+  padding: 10px;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  border-radius: 6px;
+  color: #065F46;
+  margin-bottom: 12px;
+}
+
+.all-options {
+  margin-top: 12px;
+}
+
+.all-options h5 {
+  margin: 0 0 8px 0;
+  color: #374151;
+  font-size: 14px;
+}
+
+.options-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.options-list li {
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+}
+
+.options-list li.selected {
+  background: #FEF3C7;
+  border-color: #F59E0B;
+}
+
+.options-list li.correct {
+  background: #ECFDF5;
+  border-color: #10B981;
+}
+
+.options-list li.selected.correct {
+  background: #D1FAE5;
+  border-color: #059669;
+}
+
+.correct-mark {
+  color: #059669;
+  font-weight: bold;
+}
+
+.selected-mark {
+  color: #F59E0B;
+  font-weight: bold;
+  font-size: 12px;
 }
 </style>

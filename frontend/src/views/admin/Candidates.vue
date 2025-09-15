@@ -415,7 +415,7 @@ const fetchCandidates = async () => {
       expiresAt: candidate.expires_at,
       startedAt: candidate.started_at || null,
       completedAt: candidate.completed_at || null,
-      score: candidate.percentage_score || null,
+      score: candidate.avg_score || null,
       sessionId: candidate.session_id || null,
       sessionToken: candidate.session_token || null
     }));

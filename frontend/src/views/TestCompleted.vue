@@ -13,11 +13,8 @@
           <ul class="next-steps">
             <li>Nuestro equipo técnico revisará tus respuestas</li>
             <li>Te contactaremos en los próximos días con los resultados</li>
-
           </ul>
         </div>
-        
-        
       </div>
     </div>
   </div>

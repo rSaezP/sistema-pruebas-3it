@@ -170,13 +170,31 @@ try {
     answer_text TEXT,
     time_spent_seconds INTEGER DEFAULT 0,
     max_score INTEGER,
+    score INTEGER DEFAULT 0,
+    percentage_score REAL DEFAULT 0,
     attempts_count INTEGER DEFAULT 1,
     created_at TEXT NOT NULL,
     last_modified_at TEXT NOT NULL,
     FOREIGN KEY (session_id) REFERENCES test_sessions (id),
     FOREIGN KEY (question_id) REFERENCES questions (id)
   )`);
-  console.log('✅ Tabla answers verificada');
+  
+  // Agregar columnas faltantes si la tabla ya existe
+  try {
+    db.exec(`ALTER TABLE answers ADD COLUMN score INTEGER DEFAULT 0`);
+    console.log('✅ Columna score agregada a answers');
+  } catch(e) {
+    // Columna ya existe, continuar
+  }
+  
+  try {
+    db.exec(`ALTER TABLE answers ADD COLUMN percentage_score REAL DEFAULT 0`);
+    console.log('✅ Columna percentage_score agregada a answers');
+  } catch(e) {
+    // Columna ya existe, continuar
+  }
+  
+  console.log('✅ Tabla answers verificada y actualizada');
 
   // Crear datos iniciales solo si no existen
   const categoriesCount = db.prepare('SELECT COUNT(*) as count FROM categories').get();

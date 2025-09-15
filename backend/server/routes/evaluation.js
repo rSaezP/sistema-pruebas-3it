@@ -165,62 +165,104 @@ router.post('/code', async (req, res) => {
 router.post('/multiple-choice', (req, res) => {
   const { sessionToken, questionId, selectedOption } = req.body;
 
+  console.log('🔥 === EVALUATING MULTIPLE CHOICE === 🔥');
+  console.log('⏰ Timestamp:', new Date().toISOString());
+  console.log('📝 Request body:', req.body);
+  console.log('🔑 SessionToken:', sessionToken);
+  console.log('❓ QuestionId:', questionId, 'type:', typeof questionId);
+  console.log('✅ SelectedOption:', selectedOption, 'type:', typeof selectedOption);
+
   if (!sessionToken || !questionId || selectedOption === undefined) {
     return res.status(400).json({ error: 'Datos incompletos' });
   }
 
-  // Get question details
-  db.get('SELECT * FROM questions WHERE id = ? AND type = "multiple_choice"', [questionId], (err, question) => {
-    if (err) {
-      console.error('Error al obtener pregunta:', err);
-      return res.status(500).json({ error: 'Error al obtener pregunta' });
-    }
-
+  try {
+    // Get question details (using better-sqlite3 synchronous API)
+    const question = db.prepare('SELECT * FROM questions WHERE id = ? AND type = ?').get(questionId, 'multiple_choice');
+    
     if (!question) {
       return res.status(404).json({ error: 'Pregunta no encontrada' });
     }
+
+    console.log('Question found:', { id: question.id, correct_answer: question.correct_answer, max_score: question.max_score });
 
     const correctAnswer = question.correct_answer;
     const isCorrect = String(selectedOption) === String(correctAnswer);
     const score = isCorrect ? question.max_score : 0;
     const percentage = isCorrect ? 100 : 0;
 
-    // Get session
-    db.get('SELECT id FROM test_sessions WHERE token = ?', [sessionToken], (err, session) => {
-      if (err) {
-        console.error('Error al obtener sesión:', err);
-        return res.status(500).json({ error: 'Error al obtener sesión' });
-      }
+    console.log('Evaluation:', { correctAnswer, selectedOption, isCorrect, score, percentage });
 
-      if (!session) {
-        return res.status(404).json({ error: 'Sesión no encontrada' });
-      }
+    // Get session (using better-sqlite3 synchronous API)
+    const session = db.prepare('SELECT id FROM test_sessions WHERE token = ?').get(sessionToken);
+    
+    if (!session) {
+      return res.status(404).json({ error: 'Sesión no encontrada' });
+    }
 
-      // Update answer with evaluation
-      const updateAnswerQuery = `
-        UPDATE answers 
-        SET score = ?, 
-            percentage_score = ?
-        WHERE session_id = ? AND question_id = ?
+    console.log('Session found:', session.id);
+
+    // Update answer with evaluation
+    const updateAnswerQuery = `
+      UPDATE answers 
+      SET score = ?, 
+          percentage_score = ?
+      WHERE session_id = ? AND question_id = ?
+    `;
+
+    const updateResult = db.prepare(updateAnswerQuery).run(score, percentage, session.id, questionId);
+    console.log(`✅ Respuesta actualizada - Changes: ${updateResult.changes}, Score: ${score}/${question.max_score}`);
+    
+    // Verificar que realmente se actualizó
+    const verifyUpdate = db.prepare('SELECT score, percentage_score FROM answers WHERE session_id = ? AND question_id = ?').get(session.id, questionId);
+    console.log('🔍 Verificación post-update:', verifyUpdate);
+
+    // Recalcular el puntaje total de la sesión
+    const sessionScoreQuery = `
+      SELECT 
+        SUM(a.score) as total_score,
+        SUM(q.max_score) as max_possible_score
+      FROM answers a
+      JOIN questions q ON a.question_id = q.id
+      WHERE a.session_id = ?
+    `;
+    
+    const sessionScores = db.prepare(sessionScoreQuery).get(session.id);
+    console.log('Session scores:', sessionScores);
+    
+    if (sessionScores && sessionScores.max_possible_score > 0) {
+      const sessionPercentage = (sessionScores.total_score / sessionScores.max_possible_score) * 100;
+      
+      console.log(`🔄 Recalculando puntaje de sesión: ${sessionScores.total_score}/${sessionScores.max_possible_score} = ${sessionPercentage.toFixed(2)}%`);
+      
+      // Actualizar puntaje de la sesión (sin updated_at que no existe)
+      const updateSessionQuery = `
+        UPDATE test_sessions 
+        SET percentage_score = ?
+        WHERE id = ?
       `;
+      
+      const sessionUpdateResult = db.prepare(updateSessionQuery).run(
+        parseFloat(sessionPercentage.toFixed(2)), 
+        session.id
+      );
+      
+      console.log(`✅ Puntaje de sesión actualizado: ${sessionPercentage.toFixed(2)}% - Changes: ${sessionUpdateResult.changes}`);
+    }
 
-      db.run(updateAnswerQuery, [score, percentage, session.id, questionId], (err) => {
-        if (err) {
-          console.error('Error al actualizar respuesta:', err);
-          return res.status(500).json({ error: 'Error al actualizar evaluación' });
-        }
-
-        res.json({
-          success: true,
-          correct: isCorrect,
-          score,
-          maxScore: question.max_score,
-          percentage,
-          correctAnswer: correctAnswer
-        });
-      });
+    res.json({
+      success: true,
+      correct: isCorrect,
+      score,
+      maxScore: question.max_score,
+      percentage,
+      correctAnswer: correctAnswer
     });
-  });
+    
+  } catch (error) {
+    console.error('❌ Error en evaluación:', error);
+    return res.status(500).json({ error: 'Error al actualizar evaluación: ' + error.message });
+  }
 });
 
 export default router;

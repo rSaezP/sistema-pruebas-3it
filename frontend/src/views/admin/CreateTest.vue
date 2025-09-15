@@ -111,6 +111,12 @@
             </div>
           </div>
           <div class="questions-actions">
+            <!-- Componente de importación masiva -->
+            <BulkQuestionImporter
+              @questionsImported="handleBulkImport"
+              style="margin-right: var(--spacing-2);"
+            />
+            
             <select v-model="newQuestionType" class="question-type-select">
               <option value="">Seleccionar tipo de pregunta</option>
               <option value="programming">Programación</option>
@@ -271,6 +277,8 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import QuestionEditor from '../../components/QuestionEditor.vue'
+import BulkQuestionImporter from '../../components/BulkQuestionImporter.vue'
+import type { ParsedQuestion } from '@/utils/questionParser'
 
 // Router and Toast
 const router = useRouter()
@@ -415,6 +423,34 @@ const deleteQuestion = (tempId: string) => {
     }
     toast.success('Pregunta eliminada')
   }
+}
+
+// Manejar importación masiva de preguntas
+const handleBulkImport = (importedQuestions: ParsedQuestion[]) => {
+  // Convertir las preguntas importadas al formato interno
+  const convertedQuestions = importedQuestions.map(q => ({
+    tempId: `imported_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    type: q.type,
+    title: q.title,
+    description: q.description,
+    difficulty: q.difficulty,
+    max_score: q.max_score,
+    language: q.language,
+    initial_code: '',
+    expected_solution: '',
+    database_schema: '',
+    execution_timeout: q.time_limit_minutes * 60 * 1000, // Convertir minutos a milisegundos
+    allow_partial_credit: true,
+    show_expected_output: false,
+    options: q.options,
+    correct_answer: q.correct_answer,
+    test_cases: []
+  }))
+
+  // Agregar las preguntas al test
+  testData.value.questions.push(...convertedQuestions)
+  
+  toast.success(`Se importaron ${importedQuestions.length} preguntas correctamente`)
 }
 
 

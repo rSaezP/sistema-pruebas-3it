@@ -212,6 +212,12 @@ router.post('/:token/answer', (req, res) => {
     const { token } = req.params;
     const { questionId, answer, timeSpent } = req.body;
 
+    console.log('=== DEBUG SAVE ANSWER ===');
+    console.log('Token:', token);
+    console.log('QuestionId:', questionId);
+    console.log('Answer:', answer, 'type:', typeof answer);
+    console.log('TimeSpent:', timeSpent);
+
     // Find session by token
     const session = db.prepare('SELECT * FROM test_sessions WHERE token = ?').get(token);
     
@@ -225,6 +231,10 @@ router.post('/:token/answer', (req, res) => {
     if (!question) {
       return res.status(404).json({ error: 'Pregunta no encontrada' });
     }
+
+    // Ensure answer is not null/undefined - provide default value
+    const safeAnswer = answer !== null && answer !== undefined ? String(answer) : '';
+    console.log('SafeAnswer:', safeAnswer);
 
     // Check if answer already exists
     const existingAnswer = db.prepare(`
@@ -243,7 +253,7 @@ router.post('/:token/answer', (req, res) => {
       `;
       
       const values = [
-        answer,
+        safeAnswer,
         timeSpent || 0,
         timestamp,
         (existingAnswer.attempts_count || 0) + 1,
@@ -265,7 +275,7 @@ router.post('/:token/answer', (req, res) => {
       const values = [
       session.id,
       parseInt(questionId),
-      answer,
+      safeAnswer,
       timeSpent || 0,
       question.max_score,
       1,
@@ -392,6 +402,104 @@ router.post('/:token/finish', async (req, res) => {
   } catch (error) {
     console.error('❌ Error al finalizar sesión:', error);
     res.status(500).json({ error: 'Error al finalizar sesión' });
+  }
+});
+
+// Get completed session results (for showing results to candidate)
+router.get('/completed/:token', (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    console.log('=== GET COMPLETED SESSION ===');
+    console.log('Token:', token);
+    
+    // Get session with test and candidate data
+    const sessionQuery = `
+      SELECT 
+        s.*, 
+        t.name as test_name, 
+        t.description as test_description,
+        t.passing_score,
+        c.name as candidate_name, 
+        c.lastname as candidate_lastname,
+        c.email as candidate_email
+      FROM test_sessions s
+      LEFT JOIN tests t ON s.test_id = t.id
+      LEFT JOIN candidates c ON s.candidate_id = c.id
+      WHERE s.token = ? AND s.status = 'completed'
+    `;
+    
+    const session = db.prepare(sessionQuery).get(token);
+    
+    if (!session) {
+      return res.status(404).json({ error: 'Sesión completada no encontrada' });
+    }
+    
+    // Get answers with questions data
+    const answersQuery = `
+      SELECT 
+        a.*,
+        q.title as question_title,
+        q.type as question_type,
+        q.max_score as question_max_score
+      FROM answers a
+      JOIN questions q ON a.question_id = q.id
+      WHERE a.session_id = ?
+      ORDER BY q.order_index
+    `;
+    
+    const answers = db.prepare(answersQuery).all(session.id);
+    
+    // Calculate summary stats
+    const totalQuestions = answers.length;
+    const answeredQuestions = answers.filter(a => a.answer_text && a.answer_text.trim() !== '').length;
+    const totalScore = answers.reduce((sum, a) => sum + (a.score || 0), 0);
+    const maxPossibleScore = answers.reduce((sum, a) => sum + (a.question_max_score || 0), 0);
+    const percentageScore = maxPossibleScore > 0 ? (totalScore / maxPossibleScore) * 100 : 0;
+    const passed = percentageScore >= (session.passing_score || 60);
+    
+    console.log('Session results:', {
+      totalQuestions,
+      answeredQuestions,
+      totalScore,
+      maxPossibleScore,
+      percentageScore: percentageScore.toFixed(2),
+      passed
+    });
+    
+    res.json({
+      session: {
+        id: session.id,
+        test_name: session.test_name,
+        test_description: session.test_description,
+        candidate_name: `${session.candidate_name} ${session.candidate_lastname || ''}`.trim(),
+        candidate_email: session.candidate_email,
+        started_at: session.started_at,
+        completed_at: session.finished_at,
+        time_spent_seconds: session.time_spent_seconds,
+        status: session.status
+      },
+      results: {
+        total_questions: totalQuestions,
+        answered_questions: answeredQuestions,
+        total_score: totalScore,
+        max_possible_score: maxPossibleScore,
+        percentage_score: parseFloat(percentageScore.toFixed(2)),
+        passed,
+        passing_score: session.passing_score || 60
+      },
+      answers: answers.map(a => ({
+        question_title: a.question_title,
+        question_type: a.question_type,
+        max_score: a.question_max_score,
+        score: a.score || 0,
+        answered: !!(a.answer_text && a.answer_text.trim() !== '')
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Error al obtener sesión completada:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 

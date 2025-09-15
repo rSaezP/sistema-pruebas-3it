@@ -74,6 +74,12 @@
         <div class="form-section">
           <h2>Preguntas</h2>
 
+          <!-- Componente de importación masiva -->
+          <BulkQuestionImporter
+            @questionsImported="handleBulkImport"
+            style="margin-bottom: var(--spacing-4);"
+          />
+
           <div v-for="(question, index) in formData.questions" :key="index" class="question-form-card">
             <div class="question-form-header">
               <span class="question-number">{{ index + 1 }}</span>
@@ -124,6 +130,8 @@
   import { useToast } from 'vue-toastification';
   import AdminCodeEditor from '../../components/AdminCodeEditor.vue'
   import QuestionEditor from '../../components/QuestionEditor.vue';
+  import BulkQuestionImporter from '../../components/BulkQuestionImporter.vue';
+  import type { ParsedQuestion } from '@/utils/questionParser';
 
   // Definir interfaces para TypeScript
   interface TestCase {
@@ -492,6 +500,33 @@
 
   const updateQuestionData = (index: number, questionData: Question) => {
     formData.value.questions[index] = questionData;
+  };
+
+  // Manejar importación masiva de preguntas
+  const handleBulkImport = (importedQuestions: ParsedQuestion[]) => {
+    // Convertir las preguntas importadas al formato interno
+    const convertedQuestions = importedQuestions.map(q => ({
+      title: q.title,
+      description: q.description,
+      type: q.type,
+      difficulty: q.difficulty,
+      max_score: q.max_score,
+      language: q.language,
+      initial_code: '',
+      expected_solution: '',
+      database_schema: '',
+      execution_timeout: q.time_limit_minutes * 60 * 1000, // Convertir minutos a milisegundos
+      allow_partial_credit: true,
+      show_expected_output: false,
+      options: q.options,
+      correct_answer: q.correct_answer,
+      test_cases: []
+    }));
+
+    // Agregar las preguntas al formulario
+    formData.value.questions.push(...convertedQuestions);
+    
+    toast.success(`Se importaron ${importedQuestions.length} preguntas correctamente`);
   };
 
   // Cargar los datos de la prueba al montar el componente

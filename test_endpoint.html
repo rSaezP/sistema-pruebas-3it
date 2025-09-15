@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Endpoint</title>
+</head>
+<body>
+    <h1>Test Backend Endpoint</h1>
+    <div id="results"></div>
+    
+    <script>
+        // Primero obtener todas las sesiones para ver cuáles están completadas
+        async function testEndpoint() {
+            console.log('🧪 Testing backend...');
+            
+            try {
+                // Test 1: Ver todas las sesiones
+                console.log('📋 Obteniendo todas las sesiones...');
+                const allSessions = await fetch('http://localhost:4000/api/sessions')
+                    .then(res => res.json());
+                console.log('📋 Todas las sesiones:', allSessions);
+                
+                // Buscar sesiones completadas
+                const completedSessions = allSessions.filter(s => s.status === 'completed');
+                console.log('✅ Sesiones completadas:', completedSessions);
+                
+                if (completedSessions.length > 0) {
+                    const token = completedSessions[0].token;
+                    console.log(`🎯 Probando endpoint con token: ${token}`);
+                    
+                    // Test 2: Probar nuestro endpoint
+                    const completedData = await fetch(`http://localhost:4000/api/sessions/completed/${token}`)
+                        .then(res => {
+                            console.log('Response status:', res.status);
+                            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                            return res.json();
+                        });
+                    console.log('🎉 Datos del endpoint completed:', completedData);
+                    
+                    document.getElementById('results').innerHTML = `
+                        <h2>✅ Endpoint funciona!</h2>
+                        <p><strong>Token probado:</strong> ${token}</p>
+                        <p><strong>Puntuación:</strong> ${completedData.results?.percentage_score}%</p>
+                        <pre>${JSON.stringify(completedData, null, 2)}</pre>
+                    `;
+                } else {
+                    document.getElementById('results').innerHTML = `
+                        <h2>⚠️ No hay sesiones completadas</h2>
+                        <p>Completa una prueba primero</p>
+                        <pre>${JSON.stringify(allSessions, null, 2)}</pre>
+                    `;
+                }
+                
+            } catch (error) {
+                console.error('❌ Error:', error);
+                document.getElementById('results').innerHTML = `
+                    <h2>❌ Error</h2>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+        
+        // Ejecutar test al cargar
+        testEndpoint();
+    </script>
+</body>
+</html>

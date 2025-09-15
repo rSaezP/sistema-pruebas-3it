@@ -105,6 +105,7 @@ router.get('/session/:sessionId', (req, res) => {
     // Get answers with question details
     const answersQuery = `
       SELECT a.*, q.title, q.description, q.type, q.difficulty, q.max_score as question_max_score,
+             q.options, q.correct_answer,
              c.name as category_name, c.color as category_color
       FROM answers a
       JOIN questions q ON a.question_id = q.id
@@ -114,9 +115,74 @@ router.get('/session/:sessionId', (req, res) => {
     `;
 
     const answers = db.prepare(answersQuery).all(sessionId);
+    
+    console.log('=== DEBUG REPORT ANSWERS ===');
+    console.log('SessionId:', sessionId);
+    console.log('Raw answers from DB:', answers.length);
+    answers.forEach((answer, index) => {
+      console.log(`Answer ${index}:`, {
+        id: answer.id,
+        question_id: answer.question_id,
+        answer_text: answer.answer_text,
+        score: answer.score,
+        type: answer.type,
+        options: answer.options ? answer.options.substring(0, 100) + '...' : 'null'
+      });
+    });
 
-    // Calculate score by category
-    const scoresByCategory = answers.reduce((acc, answer) => {
+    // Process answers to add formatted information
+    const processedAnswers = answers.map(answer => {
+      const processed = { ...answer };
+      
+      // For multiple choice questions, add formatted answer text
+      if (answer.type === 'multiple_choice' && answer.options) {
+        console.log(`Processing multiple choice - ID ${answer.id}:`);
+        console.log('  answer_text:', answer.answer_text, 'type:', typeof answer.answer_text);
+        console.log('  correct_answer:', answer.correct_answer);
+        console.log('  options:', answer.options);
+        
+        try {
+          const options = JSON.parse(answer.options);
+          const selectedIndex = parseInt(answer.answer_text);
+          
+          console.log('  Parsed selectedIndex:', selectedIndex, 'isNaN:', isNaN(selectedIndex));
+          console.log('  Options array length:', options.length);
+          
+          if (!isNaN(selectedIndex) && options[selectedIndex]) {
+            processed.formatted_answer = options[selectedIndex].text;
+            processed.selected_option_text = options[selectedIndex].text;
+            processed.is_correct = selectedIndex.toString() === answer.correct_answer;
+            
+            // Add all options for display
+            processed.all_options = options;
+            processed.correct_option_text = options[parseInt(answer.correct_answer)]?.text || 'No definida';
+            
+            console.log('  ✅ Processed successfully:', {
+              formatted_answer: processed.formatted_answer,
+              is_correct: processed.is_correct
+            });
+          } else {
+            processed.formatted_answer = 'Respuesta inválida';
+            processed.selected_option_text = 'No seleccionada';
+            processed.is_correct = false;
+            console.log('  ❌ Invalid selection - selectedIndex or options problem');
+          }
+        } catch (error) {
+          console.error('  ❌ Error processing multiple choice answer:', error);
+          processed.formatted_answer = answer.answer_text;
+          processed.selected_option_text = 'Error al procesar';
+          processed.is_correct = false;
+        }
+      } else {
+        // For other question types, keep original answer text
+        processed.formatted_answer = answer.answer_text;
+      }
+      
+      return processed;
+    });
+
+    // Calculate score by category (using processed answers)
+    const scoresByCategory = processedAnswers.reduce((acc, answer) => {
       const category = answer.category_name || 'Sin categoría';
       if (!acc[category]) {
         acc[category] = { total: 0, max: 0, color: answer.category_color || '#005AEE' };
@@ -132,7 +198,7 @@ router.get('/session/:sessionId', (req, res) => {
 
     res.json({
       session: { ...session, percentile },
-      answers,
+      answers: processedAnswers,
       scoresByCategory,
       summary: {
         totalScore: session.total_score || 0,

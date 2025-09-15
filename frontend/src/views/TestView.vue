@@ -105,9 +105,9 @@
                   <input
                     type="radio"
                     :name="`question-${currentQuestion.id}`"
-                    :value="option.value"
+                    :value="index"
                     v-model="answers[currentQuestion.id]"
-                    @change="updateAnswer(option.value)"
+                    @change="updateAnswer(index.toString())"
                   />
                   <span class="option-text">{{ option.text }}</span>
                 </label>
@@ -307,13 +307,31 @@ const updateAnswer = async (value: string) => {
 const saveAnswer = async (answerText: string) => {
   console.log('=== saveAnswer LLAMADO ===');
   console.log('Enviando al servidor:', answerText);
+  console.log('Tipo de pregunta:', currentQuestion.value.type);
   
   try {
+    // 1. Guardar la respuesta
     await apiClient.post(`/sessions/${props.token}/answer`, {
       questionId: currentQuestion.value.id,
       answer: answerText
     });
-    console.log('✅ Guardado exitoso');
+    console.log('✅ Respuesta guardada');
+
+    // 2. Si es selección múltiple, evaluarla automáticamente
+    if (currentQuestion.value.type === 'multiple_choice') {
+      console.log('🔍 Evaluando respuesta de selección múltiple...');
+      try {
+        const evaluationResponse = await apiClient.post('/evaluation/multiple-choice', {
+          sessionToken: props.token,
+          questionId: currentQuestion.value.id,
+          selectedOption: parseInt(answerText)
+        });
+        console.log('✅ Evaluación completada:', evaluationResponse.data);
+      } catch (evalError) {
+        console.error('❌ Error en evaluación:', evalError);
+      }
+    }
+    
   } catch (error) {
     console.error('❌ Error guardando:', error);
   }
