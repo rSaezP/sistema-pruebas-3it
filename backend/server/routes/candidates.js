@@ -39,32 +39,56 @@ router.get('/', (req, res) => {
   try {
     
     const candidatesQuery = `
-      SELECT c.*,
-             COUNT(DISTINCT s.id) as total_tests,
-             COUNT(DISTINCT CASE WHEN s.status = 'completed' THEN s.id END) as completed_tests,
-             COUNT(DISTINCT CASE WHEN s.status = 'in_progress' THEN s.id END) as in_progress_tests,
-             COUNT(DISTINCT CASE WHEN s.status = 'pending' THEN s.id END) as pending_tests,
-             ROUND(AVG(CASE WHEN s.status = 'completed' THEN s.percentage_score END)) as avg_score,
-             MAX(CASE WHEN s.status = 'completed' THEN s.percentage_score END) as best_score,
-             (CASE 
-               WHEN COUNT(DISTINCT CASE WHEN s.status = 'completed' THEN s.id END) > 0 THEN 'completed'
-               WHEN COUNT(DISTINCT CASE WHEN s.status = 'in_progress' THEN s.id END) > 0 THEN 'in_progress'
-               WHEN COUNT(DISTINCT CASE WHEN s.status = 'expired' THEN s.id END) > 0 THEN 'expired'
-               ELSE c.status
-             END) as actual_status
+      SELECT 
+        c.id as candidate_id,
+        c.name,
+        c.lastname, 
+        c.email,
+        c.phone,
+        c.position_applied,
+        c.experience_level,
+        c.created_at,
+        c.updated_at,
+        s.id as session_id,
+        s.test_id,
+        s.token as session_token,
+        s.status,
+        s.started_at,
+        s.finished_at,
+        s.percentage_score as avg_score,
+        s.created_at as session_created_at,
+        t.name as test_name,
+        t.time_limit,
+        c.expires_at
       FROM candidates c
       LEFT JOIN test_sessions s ON c.id = s.candidate_id
-      GROUP BY c.id
-      ORDER BY c.created_at DESC
+      LEFT JOIN tests t ON s.test_id = t.id
+      WHERE s.id IS NOT NULL
+      ORDER BY s.created_at DESC
     `;
 
     const candidates = db.prepare(candidatesQuery).all();
     
-    // Format the response
-    const candidatesWithStats = candidates.map(candidate => ({
-      ...candidate,
-      status: candidate.actual_status, // Use calculated status based on sessions
-      avg_score: candidate.avg_score // Already rounded in SQL query
+    // Format the response - now each row represents a session
+    const candidatesWithStats = candidates.map(session => ({
+      id: session.session_id, // Use session ID as unique identifier
+      candidate_id: session.candidate_id,
+      name: session.name,
+      lastname: session.lastname,
+      email: session.email,
+      phone: session.phone,
+      position_applied: session.position_applied,
+      experience_level: session.experience_level,
+      test_id: session.test_id,
+      test_name: session.test_name,
+      status: session.status, // Session status
+      session_token: session.session_token,
+      created_at: session.created_at,
+      updated_at: session.updated_at,
+      started_at: session.started_at,
+      finished_at: session.finished_at,
+      expires_at: session.expires_at,
+      avg_score: session.avg_score ? Math.round(session.avg_score) : null
     }));
 
     res.json(candidatesWithStats);
@@ -93,47 +117,58 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Nombre y email son requeridos' });
     }
 
-    // Verificar si ya existe un candidato con el mismo email Y misma prueba
+    // Verificar si ya existe un candidato con este email
     const existingCandidate = db.prepare(
-      'SELECT id, name, test_id FROM candidates WHERE email = ? AND test_id = ?'
-    ).get(email, test_id);
+      'SELECT id, name, email FROM candidates WHERE email = ?'
+    ).get(email);
     
-    if (existingCandidate) {
-      const testName = db.prepare('SELECT name FROM tests WHERE id = ?').get(test_id)?.name || 'esta prueba';
-      return res.status(400).json({ 
-        error: 'candidate_exists',
-        message: `El candidato ${existingCandidate.name} ya está registrado para ${testName}`,
-        candidateId: existingCandidate.id
-      });
-    }
-
     // Generate session token for the test
     const sessionToken = crypto.randomUUID();
-
-    const insertQuery = `
-      INSERT INTO candidates (
-        name, lastname, email, phone, position_applied, experience_level, 
-        test_id, expires_at, status, session_token, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-
     const timestamp = new Date().toISOString();
-    const values = [
-      name,
-      lastname || '',
-      email,
-      phone || null,
-      position_applied || '',
-      experience_level || null,
-      test_id || null,
-      expires_at || null,
-      'pending',
-      sessionToken,
-      timestamp,
-      timestamp
-    ];
+    
+    let candidateId;
+    
+    if (existingCandidate) {
+      // Verificar si tiene sesiones EN PROGRESO (no permitir si está haciendo una prueba)
+      const inProgressSessions = db.prepare(`
+        SELECT COUNT(*) as count 
+        FROM test_sessions 
+        WHERE candidate_id = ? AND status = 'in_progress'
+      `).get(existingCandidate.id);
+      
+      if (inProgressSessions.count > 0) {
+        return res.status(400).json({ 
+          error: 'candidate_has_active_session',
+          message: `El candidato ${existingCandidate.name} tiene una prueba actualmente en progreso. Debe finalizarla antes de asignar una nueva.`,
+          candidateId: existingCandidate.id
+        });
+      }
+      
+      // Reutilizar candidato existente SIN modificar sus datos
+      candidateId = existingCandidate.id;
+      console.log(`✅ Reutilizando candidato existente ID: ${candidateId} SIN modificar datos`);
+      
+    } else {
+      // Crear nuevo candidato
+      console.log(`✅ Creando nuevo candidato para ${email}`);
+      
+      const insertQuery = `
+        INSERT INTO candidates (
+          name, lastname, email, phone, position_applied, experience_level, 
+          test_id, expires_at, status, session_token, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
 
-    const result = db.prepare(insertQuery).run(...values);
+      const values = [
+        name, lastname || '', email, phone || null, position_applied || '', 
+        experience_level || null, test_id || null, expires_at || null, 
+        'pending', sessionToken, timestamp, timestamp
+      ];
+
+      const result = db.prepare(insertQuery).run(...values);
+      candidateId = result.lastInsertRowid;
+      console.log(`✅ Candidato creado con ID: ${candidateId}`);
+    }
 
     console.log('=== DEBUG GENERAL ===');
     console.log('test_id recibido:', test_id);
@@ -158,7 +193,7 @@ router.post('/', (req, res) => {
         `;
         
         const sessionValues = [
-          result.lastInsertRowid,
+          candidateId,
           test_id,
           sessionToken,
           test.time_limit,
@@ -182,9 +217,9 @@ router.post('/', (req, res) => {
     }
 
     res.json({ 
-      id: result.lastInsertRowid, 
+      id: candidateId, 
       sessionToken,
-      message: 'Candidato creado exitosamente' 
+      message: 'Candidato procesado exitosamente' 
     });
   } catch (error) {
     console.error('Error al crear candidato:', error);
@@ -252,7 +287,60 @@ router.post('/:candidateId/invite', (req, res) => {
   }
 });
 
-// Delete candidate
+// Delete specific test session (not entire candidate)
+router.delete('/session/:sessionId', (req, res) => {
+  try {
+    const sessionId = parseInt(req.params.sessionId);
+    
+    if (isNaN(sessionId)) {
+      return res.status(400).json({ error: 'ID de sesión no válido' });
+    }
+    
+    // Verificar si la sesión existe
+    const session = db.prepare('SELECT * FROM test_sessions WHERE id = ?').get(sessionId);
+    if (!session) {
+      return res.status(404).json({ error: 'Sesión no encontrada' });
+    }
+    
+    // Como administrador, puedes eliminar cualquier prueba
+    console.log(`🗑️ Eliminando sesión ${sessionId} con estado: ${session.status}`);
+    
+    // Iniciar una transacción para asegurar la integridad de los datos
+    db.prepare('BEGIN TRANSACTION').run();
+    
+    try {
+      // Eliminar answers de esta sesión específica
+      db.prepare('DELETE FROM answers WHERE session_id = ?').run(sessionId);
+      
+      // Eliminar la sesión específica
+      const result = db.prepare('DELETE FROM test_sessions WHERE id = ?').run(sessionId);
+      
+      db.prepare('COMMIT').run();
+      
+      if (result.changes === 0) {
+        return res.status(404).json({ error: 'No se pudo eliminar la sesión' });
+      }
+      
+      res.status(200).json({ 
+        message: 'Prueba eliminada correctamente',
+        sessionId: sessionId
+      });
+      
+    } catch (error) {
+      db.prepare('ROLLBACK').run();
+      throw error;
+    }
+    
+  } catch (error) {
+    console.error('Error al eliminar sesión:', error);
+    res.status(500).json({ 
+      error: 'Error al eliminar la prueba',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Delete entire candidate (all sessions)
 router.delete('/:id', (req, res) => {
   try {
     const candidateId = parseInt(req.params.id);

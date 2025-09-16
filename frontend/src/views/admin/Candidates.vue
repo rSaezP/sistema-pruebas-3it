@@ -591,7 +591,7 @@ const deleteCandidate = async () => {
   try {
     isDeleting.value = true;
     
-    const response = await fetch(`/api/candidates/${candidateToDelete.value.id}`, {
+    const response = await fetch(`/api/candidates/session/${candidateToDelete.value.id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -604,7 +604,7 @@ const deleteCandidate = async () => {
       throw new Error(errorData.message || `Error ${response.status}: No se pudo eliminar el candidato`);
     }
     
-    toast.success('Candidato eliminado correctamente');
+    toast.success('Prueba eliminada correctamente');
     
     // Cerrar el modal y recargar la lista
     showDeleteModal.value = false;
