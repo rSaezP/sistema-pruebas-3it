@@ -1,0 +1,33 @@
+[33m52f5277[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/evaluador-universal[m[33m, [m[1;31morigin/feature/evaluador-universal[m[33m)[m puntuación de pruebas de selección múltiple puntuación en pagina de candidatos
+[33m626e055[m[33m ([m[1;31morigin/main[m[33m, [m[1;32mmain[m[33m)[m mejoras en pagina de reporte completo mas detalle del candidato
+[33m6c5f527[m mejoras en pagina de reporte - editar prueba
+[33m265fd9d[m mejoras editor codigo - evaluacion universal
+[33meb00f50[m backup: mejoras de puntuacion en 40%
+[33m00b1612[m Mejoras en la puntuación de la evaluacion en un 40%
+[33m0137866[m Mensaje de bienvenida
+[33me9b761f[m aws cogito
+[33mee75d3a[m Descarga de reporte en PDF  con respuestas y preguntas del candidato
+[33mdd52342[m edición correctamente completa y guardada
+[33mb7f1092[m edición de pruebas corregido
+[33m92c1b19[m solucion de errores
+[33ma618ebf[m Mejoras luego de separar el backend del front - mostrar prueba - finalizar prueba
+[33mc7e2e9c[m formulario de editar casi perfecto
+[33me39ac2d[m solucion de error eliminar candidato y limpiaeza de archivos duplicado
+[33m2cdcea0[m casos de pruebas visibles para preguntas SQL
+[33m9682d51[m Cambio de estado de pendiente a completado
+[33mc3f949d[m Botones visibles de formulario acciones
+[33m66dde46[m mensaje de finalizacion al candidato
+[33m2e60b5e[m eliminar mensaje de prueba no encontrada
+[33m87716c3[m eliminar boton ejecutar y valir codigo
+[33m5ee4974[m feat: eliminar funcionalidad de pausa del timer - solo mostrar tiempo restante - editor de código seguro
+[33m45f8384[m respuestas guardadas correctamente
+[33m2494532[m visualización prueba técncia
+[33m03195a9[m seprar Front del Backend
+[33mebe74ea[m envio de email configurado
+[33m3619e6d[m Sqlite configurada
+[33m58d1df0[m Solución de problema boton guardar y revisar
+[33m284836f[m mejoras en formulario y loop
+[33m3902745[m Mejoras en agregar casosss
+[33m2558b27[m Mejoras en agregar casos
+[33mc0ff1d4[m Mejoras en formulario de pruebas
+[33m2347e8e[m Inicial: Sistema de Pruebas Técnicas 3IT

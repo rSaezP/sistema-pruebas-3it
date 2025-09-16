@@ -96,7 +96,7 @@
               </td>
               <td>
                 <span v-if="candidate.score !== null">
-                  {{ candidate.score }}%
+                  {{ candidate.score }}/100
                 </span>
                 <span v-else class="text-muted">-</span>
               </td>

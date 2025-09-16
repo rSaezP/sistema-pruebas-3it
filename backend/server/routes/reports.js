@@ -25,14 +25,15 @@ router.get('/dashboard', (req, res) => {
     const averageScore = db.prepare("SELECT AVG(percentage_score) as avg FROM test_sessions WHERE status = 'completed'").get();
     results.averageScore = averageScore.avg || 0;
     
-    // Get recent sessions
+    // Get recent COMPLETED sessions only
     const recentSessionsQuery = `
       SELECT ts.*, c.name as candidate_name, c.email, t.name as test_name,
-             ts.percentage_score, ts.status, ts.created_at
+             ts.percentage_score, ts.status, ts.finished_at, ts.created_at
       FROM test_sessions ts
       JOIN candidates c ON ts.candidate_id = c.id
       JOIN tests t ON ts.test_id = t.id
-      ORDER BY ts.created_at DESC
+      WHERE ts.status = 'completed'
+      ORDER BY ts.finished_at DESC
       LIMIT 10
     `;
     

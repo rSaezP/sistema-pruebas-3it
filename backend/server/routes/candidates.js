@@ -44,7 +44,14 @@ router.get('/', (req, res) => {
              COUNT(DISTINCT CASE WHEN s.status = 'completed' THEN s.id END) as completed_tests,
              COUNT(DISTINCT CASE WHEN s.status = 'in_progress' THEN s.id END) as in_progress_tests,
              COUNT(DISTINCT CASE WHEN s.status = 'pending' THEN s.id END) as pending_tests,
-             AVG(CASE WHEN s.status = 'completed' THEN s.percentage_score END) as avg_score
+             ROUND(AVG(CASE WHEN s.status = 'completed' THEN s.percentage_score END)) as avg_score,
+             MAX(CASE WHEN s.status = 'completed' THEN s.percentage_score END) as best_score,
+             (CASE 
+               WHEN COUNT(DISTINCT CASE WHEN s.status = 'completed' THEN s.id END) > 0 THEN 'completed'
+               WHEN COUNT(DISTINCT CASE WHEN s.status = 'in_progress' THEN s.id END) > 0 THEN 'in_progress'
+               WHEN COUNT(DISTINCT CASE WHEN s.status = 'expired' THEN s.id END) > 0 THEN 'expired'
+               ELSE c.status
+             END) as actual_status
       FROM candidates c
       LEFT JOIN test_sessions s ON c.id = s.candidate_id
       GROUP BY c.id
@@ -56,7 +63,8 @@ router.get('/', (req, res) => {
     // Format the response
     const candidatesWithStats = candidates.map(candidate => ({
       ...candidate,
-      avg_score: candidate.avg_score ? Math.round(candidate.avg_score * 100) / 100 : null
+      status: candidate.actual_status, // Use calculated status based on sessions
+      avg_score: candidate.avg_score // Already rounded in SQL query
     }));
 
     res.json(candidatesWithStats);
