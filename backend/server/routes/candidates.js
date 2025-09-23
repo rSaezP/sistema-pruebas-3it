@@ -37,8 +37,6 @@ const router = express.Router();
 // Get all candidates with their test sessions
 router.get('/', (req, res) => {
   try {
-    // updateExpiredSessions(); // DESACTIVADO: Lógica necesita más ajustes
-    
     const candidatesQuery = `
       SELECT 
         c.id as candidate_id,
@@ -196,23 +194,10 @@ router.post('/', (req, res) => {
       console.log(`✅ Candidato creado con ID: ${candidateId}`);
     }
 
-    console.log('=== DEBUG GENERAL ===');
-    console.log('test_id recibido:', test_id);
-    console.log('test_id type:', typeof test_id);
-    console.log('test_id truthy:', !!test_id);
-    console.log('=== DATOS RECIBIDOS COMPLETOS ===', { name, lastname, email, test_id, expires_at });
-    console.log('=== FECHA FORMATEADA ===', formattedExpiresAt);
-    console.log('=== FECHA SERVIDOR ===', new Date().toISOString());
-
-  console.log('=== DEBUG GENERAL ===');
 
     // Si tiene test_id, crear también la sesión correspondiente
     if (test_id) {
-      console.log('=== DEBUG CREACIÓN SESIÓN ===');
-      console.log('test_id:', test_id);
-      
       const test = db.prepare('SELECT * FROM tests WHERE id = ?').get(test_id);
-      console.log('test encontrado:', test);
       
       if (test) {
         const insertSessionQuery = `
