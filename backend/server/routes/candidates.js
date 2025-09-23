@@ -1808,41 +1808,6 @@ export {
   executeCode
 };
 
-// FUNCIÓN PARA ACTUALIZAR SESIONES EXPIRADAS
-const updateExpiredSessions = () => {
-  try {
-    const now = new Date().toISOString();
-    
-    // Actualizar sesiones que han expirado (comparando solo fechas)
-    const updateQuery = `
-      UPDATE test_sessions 
-      SET status = 'expired'
-      WHERE status = 'pending' 
-      AND candidate_id IN (
-        SELECT id FROM candidates 
-        WHERE datetime(expires_at) <= datetime('now', 'utc')
-      )
-    `;
-    
-    const result = db.prepare(updateQuery).run();
-    
-    const timestamp = new Date().toLocaleString('es-ES');
-    console.log(`[EXPIRY-CHECK ${timestamp}] ${result.changes} sesiones marcadas como expiradas`);
-    
-    return {
-      success: true,
-      updated_sessions: result.changes,
-      checked_at: now
-    };
-  } catch (error) {
-    console.error('[EXPIRY-CHECK] Error:', error);
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-};
-
 // ENDPOINT PARA REPARAR SESIONES MARCADAS INCORRECTAMENTE
 router.get('/fix-expired-sessions', (req, res) => {
   try {
@@ -1869,11 +1834,6 @@ router.get('/fix-expired-sessions', (req, res) => {
   }
 });
 
-// ENDPOINT MANUAL PARA ACTUALIZAR SESIONES EXPIRADAS (REACTIVADO PARA PRUEBAS)
-router.get('/update-expired-sessions', (req, res) => {
-  const result = updateExpiredSessions();
-  res.json(result);
-});
 
 // ENDPOINT TEMPORAL PARA DEBUGGEAR FECHAS
 router.get('/debug/expired-sessions', (req, res) => {
