@@ -1059,11 +1059,23 @@ async function evaluateAnswer(answer) {
     let maxPossibleScore = 0;
     const results = [];
 
-    // Si no hay test cases, asignar puntaje máximo si hay respuesta
+    // Si no hay test cases, manejar según tipo de pregunta
     if (testCases.length === 0) {
-      console.log(`[DEBUG-EVAL] Sin test cases, verificando respuesta`);
-      const hasAnswer = answer.answer_text && answer.answer_text.trim() !== '';
-      const score = hasAnswer ? (question.max_score || 1) : 0;
+      console.log(`[DEBUG-EVAL] Sin test cases, verificando tipo: ${question.type}`);
+      let score;
+      
+      if (question.type === 'multiple_choice') {
+        // Evaluación específica para multiple choice
+        console.log(`[DEBUG-EVAL] Evaluando multiple choice - Respuesta: "${answer.answer_text}", Correcta: "${question.correct_answer}"`);
+        const isCorrect = String(answer.answer_text) === String(question.correct_answer);
+        score = isCorrect ? (question.max_score || 10) : 0;
+        console.log(`[DEBUG-EVAL] Resultado: ${isCorrect ? 'CORRECTO' : 'INCORRECTO'} - Score: ${score}`);
+      } else {
+        // Para otros tipos, verificar si hay respuesta
+        const hasAnswer = answer.answer_text && answer.answer_text.trim() !== '';
+        score = hasAnswer ? (question.max_score || 1) : 0;
+        console.log(`[DEBUG-EVAL] Tipo ${question.type}, tiene respuesta: ${hasAnswer}, score: ${score}`);
+      }
       
       db.prepare(`
         UPDATE answers 
@@ -1071,12 +1083,12 @@ async function evaluateAnswer(answer) {
             percentage_score = ?,
             test_cases_passed = ?,
             test_cases_total = ?,
-            updated_at = ?
+            last_modified_at = ?
         WHERE id = ?
       `).run(
         score,
         score * 100 / (question.max_score || 1),
-        hasAnswer ? 1 : 0,
+        score > 0 ? 1 : 0,
         1,
         new Date().toISOString(),
         answer.id
@@ -1447,10 +1459,34 @@ const evaluateCandidateAnswers = async (candidateId) => {
         console.log(`[DEBUG-EVAL] Casos de prueba encontrados: ${testCases.length}`);
         
         if (testCases.length === 0) {
-          // Sin casos de prueba, asignar puntaje completo (para preguntas SQL/texto)
-          console.log(`[DEBUG-EVAL] No hay casos de prueba, asignando puntaje completo`);
-          const score = answer.max_score || 1;
-          const percentage = 100;
+          // Sin casos de prueba - manejar según tipo de pregunta
+          let score, percentage;
+          
+          if (answer.type === 'multiple_choice') {
+            // Evaluación específica para multiple choice
+            console.log(`[DEBUG-EVAL] Evaluando pregunta multiple choice ID: ${answer.question_id}`);
+            
+            // Obtener la respuesta correcta de la pregunta
+            const question = db.prepare('SELECT correct_answer FROM questions WHERE id = ?').get(answer.question_id);
+            
+            if (question) {
+              const isCorrect = String(answer.answer_text) === String(question.correct_answer);
+              score = isCorrect ? (answer.max_score || 10) : 0;
+              percentage = isCorrect ? 100 : 0;
+              
+              console.log(`[DEBUG-EVAL] Multiple Choice - Respuesta: "${answer.answer_text}", Correcta: "${question.correct_answer}", Es correcta: ${isCorrect}`);
+              console.log(`[DEBUG-EVAL] Puntaje asignado: ${score}/${answer.max_score} (${percentage}%)`);
+            } else {
+              console.log(`[DEBUG-EVAL] ERROR: No se encontró la pregunta ${answer.question_id}`);
+              score = 0;
+              percentage = 0;
+            }
+          } else {
+            // Para otros tipos sin casos de prueba (SQL/texto), asignar puntaje completo
+            console.log(`[DEBUG-EVAL] Tipo ${answer.type} sin casos de prueba, asignando puntaje completo`);
+            score = answer.max_score || 1;
+            percentage = 100;
+          }
           
           console.log(`[DEBUG-EVAL] Actualizando BD - ID: ${answer.id}, Score: ${score}, Porcentaje: ${percentage}%`);
           
