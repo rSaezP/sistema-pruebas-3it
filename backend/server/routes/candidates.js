@@ -37,6 +37,7 @@ const router = express.Router();
 // Get all candidates with their test sessions
 router.get('/', (req, res) => {
   try {
+    // updateExpiredSessions(); // DESACTIVADO: Lógica necesita más ajustes
     
     const candidatesQuery = `
       SELECT 
@@ -59,7 +60,7 @@ router.get('/', (req, res) => {
         s.created_at as session_created_at,
         t.name as test_name,
         t.time_limit,
-        c.expires_at
+        c.expires_at as candidate_expires_at
       FROM candidates c
       LEFT JOIN test_sessions s ON c.id = s.candidate_id
       LEFT JOIN tests t ON s.test_id = t.id
@@ -70,26 +71,38 @@ router.get('/', (req, res) => {
     const candidates = db.prepare(candidatesQuery).all();
     
     // Format the response - now each row represents a session
-    const candidatesWithStats = candidates.map(session => ({
-      id: session.session_id, // Use session ID as unique identifier
-      candidate_id: session.candidate_id,
-      name: session.name,
-      lastname: session.lastname,
-      email: session.email,
-      phone: session.phone,
-      position_applied: session.position_applied,
-      experience_level: session.experience_level,
-      test_id: session.test_id,
-      test_name: session.test_name,
-      status: session.status, // Session status
-      session_token: session.session_token,
-      created_at: session.created_at,
-      updated_at: session.updated_at,
-      started_at: session.started_at,
-      finished_at: session.finished_at,
-      expires_at: session.expires_at,
-      avg_score: session.avg_score ? Math.round(session.avg_score) : null
-    }));
+    const candidatesWithStats = candidates.map(session => {
+      // Verificar expiración en tiempo real
+      let currentStatus = session.status;
+      if (session.candidate_expires_at && currentStatus !== 'completed') {
+        const now = new Date();
+        const expirationDate = new Date(session.candidate_expires_at);
+        if (now > expirationDate) {
+          currentStatus = 'expired';
+        }
+      }
+      
+      return {
+        id: session.session_id, // Use session ID as unique identifier
+        candidate_id: session.candidate_id,
+        name: session.name,
+        lastname: session.lastname,
+        email: session.email,
+        phone: session.phone,
+        position_applied: session.position_applied,
+        experience_level: session.experience_level,
+        test_id: session.test_id,
+        test_name: session.test_name,
+        status: currentStatus, // Session status (con verificación de expiración)
+        session_token: session.session_token,
+        created_at: session.session_created_at, // Fecha de creación de la sesión
+        updated_at: session.updated_at,
+        started_at: session.started_at,
+        finished_at: session.finished_at,
+        expires_at: session.candidate_expires_at,
+        avg_score: session.avg_score ? Math.round(session.avg_score) : null
+      };
+    });
 
     res.json(candidatesWithStats);
   } catch (error) {
@@ -126,6 +139,11 @@ router.post('/', (req, res) => {
     const sessionToken = crypto.randomUUID();
     const timestamp = new Date().toISOString();
     
+    // Convertir expires_at al formato correcto si viene como fecha simple
+    const formattedExpiresAt = expires_at ? 
+      (expires_at.includes('T') ? expires_at : `${expires_at}T23:59:59.000Z`) : 
+      null;
+    
     let candidateId;
     
     if (existingCandidate) {
@@ -144,9 +162,17 @@ router.post('/', (req, res) => {
         });
       }
       
-      // Reutilizar candidato existente SIN modificar sus datos
+      // Reutilizar candidato existente PERO ACTUALIZAR expires_at
       candidateId = existingCandidate.id;
-      console.log(`✅ Reutilizando candidato existente ID: ${candidateId} SIN modificar datos`);
+      
+      // Actualizar solo expires_at del candidato existente
+      db.prepare(`
+        UPDATE candidates 
+        SET expires_at = ?, updated_at = ?
+        WHERE id = ?
+      `).run(formattedExpiresAt, timestamp, candidateId);
+      
+      console.log(`✅ Candidato ID: ${candidateId} - expires_at actualizado a: ${formattedExpiresAt}`);
       
     } else {
       // Crear nuevo candidato
@@ -161,7 +187,7 @@ router.post('/', (req, res) => {
 
       const values = [
         name, lastname || '', email, phone || null, position_applied || '', 
-        experience_level || null, test_id || null, expires_at || null, 
+        experience_level || null, test_id || null, formattedExpiresAt, 
         'pending', sessionToken, timestamp, timestamp
       ];
 
@@ -175,6 +201,8 @@ router.post('/', (req, res) => {
     console.log('test_id type:', typeof test_id);
     console.log('test_id truthy:', !!test_id);
     console.log('=== DATOS RECIBIDOS COMPLETOS ===', { name, lastname, email, test_id, expires_at });
+    console.log('=== FECHA FORMATEADA ===', formattedExpiresAt);
+    console.log('=== FECHA SERVIDOR ===', new Date().toISOString());
 
   console.log('=== DEBUG GENERAL ===');
 
@@ -1444,7 +1472,7 @@ const evaluateCandidateAnswers = async (candidateId) => {
           db.prepare(`
             UPDATE answers 
             SET score = ?, percentage_score = ?, test_cases_passed = 1, test_cases_total = 1
-            WHERE id = ?`).run(score, percentage, passed, total, timestamp, answerId)
+            WHERE id = ?`).run(score, percentage, answer.id)
           
           evaluatedCount++;
           continue;
@@ -1794,5 +1822,115 @@ export {
   updateSessionScore,
   executeCode
 };
+
+// FUNCIÓN PARA ACTUALIZAR SESIONES EXPIRADAS
+const updateExpiredSessions = () => {
+  try {
+    const now = new Date().toISOString();
+    
+    // Actualizar sesiones que han expirado (comparando solo fechas)
+    const updateQuery = `
+      UPDATE test_sessions 
+      SET status = 'expired'
+      WHERE status = 'pending' 
+      AND candidate_id IN (
+        SELECT id FROM candidates 
+        WHERE datetime(expires_at) <= datetime('now', 'utc')
+      )
+    `;
+    
+    const result = db.prepare(updateQuery).run();
+    
+    const timestamp = new Date().toLocaleString('es-ES');
+    console.log(`[EXPIRY-CHECK ${timestamp}] ${result.changes} sesiones marcadas como expiradas`);
+    
+    return {
+      success: true,
+      updated_sessions: result.changes,
+      checked_at: now
+    };
+  } catch (error) {
+    console.error('[EXPIRY-CHECK] Error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+
+// ENDPOINT PARA REPARAR SESIONES MARCADAS INCORRECTAMENTE
+router.get('/fix-expired-sessions', (req, res) => {
+  try {
+    // Revertir sesiones que NO deberían estar expiradas (fecha >= hoy)
+    const fixQuery = `
+      UPDATE test_sessions 
+      SET status = 'pending'
+      WHERE status = 'expired' 
+      AND candidate_id IN (
+        SELECT id FROM candidates 
+        WHERE DATE(expires_at) >= DATE('now')
+      )
+    `;
+    
+    const result = db.prepare(fixQuery).run();
+    
+    res.json({
+      success: true,
+      fixed_sessions: result.changes,
+      message: `${result.changes} sesiones revertidas a pending`
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ENDPOINT MANUAL PARA ACTUALIZAR SESIONES EXPIRADAS (REACTIVADO PARA PRUEBAS)
+router.get('/update-expired-sessions', (req, res) => {
+  const result = updateExpiredSessions();
+  res.json(result);
+});
+
+// ENDPOINT TEMPORAL PARA DEBUGGEAR FECHAS
+router.get('/debug/expired-sessions', (req, res) => {
+  try {
+    // Mostrar diferentes formatos de fecha para comparar
+    const now = new Date();
+    const nowISO = now.toISOString();
+    const nowDateOnly = now.toISOString().split('T')[0]; // Solo YYYY-MM-DD
+    
+    // Buscar TODAS las sesiones (no solo pending) para ver el problema
+    const allSessionsQuery = `
+      SELECT 
+        ts.id as session_id,
+        ts.status,
+        ts.created_at,
+        c.id as candidate_id,
+        c.name,
+        c.email,
+        c.expires_at,
+        c.expires_at < ? as expired_by_iso_full,
+        c.expires_at < ? as expired_by_date_only,
+        DATE(c.expires_at) < DATE(?) as expired_correctly
+      FROM test_sessions ts
+      JOIN candidates c ON ts.candidate_id = c.id
+      ORDER BY c.expires_at DESC
+      LIMIT 10
+    `;
+    
+    const sessions = db.prepare(allSessionsQuery).all(nowISO, nowDateOnly, nowISO);
+    
+    res.json({
+      debug_info: {
+        server_time_full: nowISO,
+        server_date_only: nowDateOnly,
+        server_timezone_offset: now.getTimezoneOffset()
+      },
+      total_sessions_found: sessions.length,
+      sessions: sessions
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 export default router;

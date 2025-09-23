@@ -92,7 +92,7 @@
               </td>
               <td>{{ formatDate(candidate.invitedAt) }}</td>
               <td :class="{ 'text-warning': isExpiringSoon(candidate.expiresAt) }">
-                {{ formatDate(candidate.expiresAt) }}
+                {{ formatExpiryDate(candidate.expiresAt) }}
               </td>
               <td>
                 <span v-if="candidate.score !== null">
@@ -673,6 +673,25 @@ const formatDate = (dateString: string) => {
     hour: '2-digit',
     minute: '2-digit'
   });
+};
+
+// Función específica para fechas de expiración (solo fecha, sin hora)
+const formatExpiryDate = (dateString: string) => {
+  if (!dateString) return '-';
+  
+  // Para fechas en formato YYYY-MM-DD, mantener solo la fecha sin conversión de zona horaria
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [year, month, day] = dateString.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    return date.toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  }
+  
+  // Para otros formatos, usar formatDate normal
+  return formatDate(dateString);
 };
 
 const isExpiringSoon = (expiresAt: string) => {

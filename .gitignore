@@ -22,3 +22,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Database files
+*.db
+*.sqbpro
+
+# Backup files  
+*.backup*
+*.working
+*.bak
+
+# PDF reports
+Reporte_*.pdf
+test_direct.pdf

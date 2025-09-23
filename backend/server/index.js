@@ -31,6 +31,25 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Initialize database
 initDatabase();
 
+// Función para verificar sesiones expiradas cada 30 minutos
+const checkExpiredSessions = async () => {
+  try {
+    const response = await fetch(`http://localhost:${PORT}/api/candidates/update-expired-sessions`);
+    const result = await response.json();
+    if (result.success && result.updated_sessions > 0) {
+      console.log(`🕐 [AUTO-EXPIRY] ${result.updated_sessions} sesiones marcadas como expiradas`);
+    }
+  } catch (error) {
+    console.error('🕐 [AUTO-EXPIRY] Error:', error.message);
+  }
+};
+
+// Ejecutar verificación cada 30 minutos (1800000 ms)
+setInterval(checkExpiredSessions, 30 * 60 * 1000);
+
+// Ejecutar una verificación inicial después de 10 segundos
+setTimeout(checkExpiredSessions, 10000);
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tests', testsRoutes);
