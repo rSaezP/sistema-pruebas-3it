@@ -1,8 +1,12 @@
 <template>
   <div class="admin-layout">
-    <!-- Sidebar -->
-    <aside class="sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
-      <div class="sidebar-header">
+    <!-- Header completo que cubre toda la pantalla -->
+    <header class="full-header" :class="{ 
+      'header-transparent': headerTransparent, 
+      'header-hidden': headerHidden 
+    }">
+      <!-- Área del logo (replicando sidebar-header) -->
+      <div class="header-sidebar-section" :class="{ 'header-sidebar-collapsed': sidebarCollapsed }">
         <div class="logo">
           <img src="@/assets/logo-3it.png" alt="3IT Logo" class="logo-image">
         </div>
@@ -13,6 +17,18 @@
         </button>
       </div>
       
+      <!-- Área del título (replicando main-header) -->
+      <div class="header-main-section">
+        <h1>Sistema de Pruebas Técnicas 3IT</h1>
+        <div class="user-info">
+          <span>Bienvenido</span>
+          <small>{{ userEmail }}</small>
+        </div>
+      </div>
+    </header>
+
+    <!-- Sidebar original SIN la parte del header -->
+    <aside class="sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
       <nav class="sidebar-nav">
         <router-link to="/admin/dashboard" class="nav-item">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -47,16 +63,8 @@
       </nav>
     </aside>
 
-    <!-- Main content -->
+    <!-- Main content original -->
     <main class="main-content">
-      <header class="main-header" :class="{ 'header-transparent': headerTransparent }">
-        <h1>Sistema de Pruebas Técnicas 3IT</h1>
-        <div class="user-info">
-          <span>Bienvenido</span>
-          <small>{{ userEmail }}</small>
-        </div>
-      </header>
-      
       <div class="content">
         <router-view />
       </div>
@@ -71,6 +79,8 @@ import { useAuthStore } from '../stores/auth';
 const authStore = useAuthStore();
 const sidebarCollapsed = ref(false);
 const headerTransparent = ref(false);
+const headerHidden = ref(false);
+let lastScrollTop = 0;
 
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value;
@@ -79,7 +89,26 @@ const toggleSidebar = () => {
 const handleScroll = (event: Event) => {
   const target = event.target as HTMLElement;
   if (target) {
-    headerTransparent.value = target.scrollTop > 50;
+    const scrollTop = target.scrollTop;
+    const scrollingDown = scrollTop > lastScrollTop;
+    const scrollDistance = Math.abs(scrollTop - lastScrollTop);
+    
+    // Solo actuar si hay un scroll significativo
+    if (scrollDistance > 3) {
+      // Transparencia gradual desde los 30px
+      headerTransparent.value = scrollTop > 30;
+      
+      // Desvanecido gradual con scroll hacia abajo
+      if (scrollTop > 80 && scrollingDown && scrollDistance > 8) {
+        headerHidden.value = true;
+      } 
+      // Reaparecer con scroll hacia arriba
+      else if (!scrollingDown || scrollTop <= 60) {
+        headerHidden.value = false;
+      }
+    }
+    
+    lastScrollTop = scrollTop;
   }
 };
 
@@ -110,32 +139,75 @@ const userEmail = computed(() => {
   background-color: var(--gris);
 }
 
-.sidebar {
-  width: 280px;
-  background-color: var(--blanco);
-  color: var(--azul-tritiano);
-  display: flex;
-  flex-direction: column;
-  transition: width var(--transition-base);
-  position: relative;
-  z-index: 10;
-  box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-}
-
-.sidebar-collapsed {
-  width: 80px;
-}
-
-.sidebar-header {
-  padding: var(--spacing-4);
+/* Header completo fijo en la parte superior */
+.full-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100px;
   background-color: var(--blanco);
   border-bottom: 1px solid #E5E7EB;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  z-index: 15;
+  transition: opacity 0.5s ease-in-out, 
+              background-color 0.3s ease,
+              backdrop-filter 0.3s ease,
+              box-shadow 0.3s ease;
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.header-transparent {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  box-shadow: 0 1px 20px rgba(0, 0, 0, 0.1) !important;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.5) !important;
+}
+
+.header-hidden {
+  opacity: 0.15 !important;
+  pointer-events: none;
+}
+
+/* Sección del sidebar en el header */
+.header-sidebar-section {
+  width: 280px;
+  padding: var(--spacing-4);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 100px;
+  transition: width var(--transition-base);
 }
 
+.header-sidebar-collapsed {
+  width: 80px;
+  justify-content: center;
+}
+
+.header-sidebar-collapsed .logo {
+  display: none;
+}
+
+/* Sección principal del header */
+.header-main-section {
+  flex: 1;
+  padding: var(--spacing-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-main-section h1 {
+  color: var(--primary);
+  font-size: var(--font-size-3xl);
+  margin: 0;
+  font-weight: 700;
+}
+
+/* Elementos compartidos */
 .logo {
   display: flex;
   align-items: center;
@@ -144,22 +216,10 @@ const userEmail = computed(() => {
 }
 
 .logo-image {
+  width: 160px;
   height: 80px;
   object-fit: contain;
   transition: all var(--transition-base);
-}
-
-.sidebar-collapsed .logo-image {
-  width: 60px;
-  height: 60px;
-}
-
-.sidebar-collapsed .sidebar-header {
-  justify-content: center;
-}
-
-.sidebar-collapsed .logo {
-  display: none;
 }
 
 .sidebar-toggle {
@@ -174,6 +234,44 @@ const userEmail = computed(() => {
 
 .sidebar-toggle:hover {
   background-color: rgba(0, 0, 38, 0.1);
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-1);
+  font-weight: 500;
+  color: var(--azul-tritiano);
+}
+
+.user-info span {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+}
+
+.user-info small {
+  font-size: var(--font-size-sm);
+  color: #6B7280;
+  opacity: 0.8;
+}
+
+/* Sidebar original */
+.sidebar {
+  width: 280px;
+  background-color: var(--blanco);
+  color: var(--azul-tritiano);
+  display: flex;
+  flex-direction: column;
+  transition: width var(--transition-base);
+  position: relative;
+  z-index: 10;
+  box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+  margin-top: 100px; /* Compensar header fijo */
+}
+
+.sidebar-collapsed {
+  width: 80px;
 }
 
 .sidebar-nav {
@@ -218,93 +316,41 @@ const userEmail = computed(() => {
   opacity: 0;
 }
 
+/* Main content */
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-}
-
-.main-header {
-  background-color: var(--blanco);
-  padding: var(--spacing-4);
-  border-bottom: 1px solid #E5E7EB;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  box-shadow: var(--shadow-sm);
-  height: 100px;
-  position: fixed;
-  top: 0;
-  left: 280px;
-  right: 0;
-  z-index: 15;
-  transition: all 0.3s ease;
-}
-
-.sidebar-collapsed ~ .main-content .main-header {
-  left: 80px;
-}
-
-.main-header h1 {
-  color: var(--primary);
-  font-size: var(--font-size-3xl);
-  margin: 0;
-  font-weight: 700;
-}
-
-.user-info {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--spacing-1);
-  font-weight: 500;
-  color: var(--azul-tritiano);
-}
-
-.user-info span {
-  font-size: var(--font-size-base);
-  font-weight: 600;
-}
-
-.user-info small {
-  font-size: var(--font-size-sm);
-  color: #6B7280;
-  opacity: 0.8;
+  margin-top: 100px; /* Compensar header fijo */
 }
 
 .content {
   flex: 1;
   padding: var(--spacing-4);
-  padding-top: calc(var(--spacing-4) + 100px);
   overflow-y: auto;
   background-color: var(--gris);
 }
 
-.header-transparent {
-  background-color: rgba(255, 255, 255, 0.85) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
-  box-shadow: 0 1px 20px rgba(0, 0, 0, 0.1) !important;
-  border-bottom: 1px solid rgba(229, 231, 235, 0.5) !important;
-}
-
-header.main-header.header-transparent {
-  background-color: rgba(255, 255, 255, 0.85) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
-  box-shadow: 0 1px 20px rgba(0, 0, 0, 0.1) !important;
-}
-
-
+/* Responsive */
 @media (max-width: 768px) {
+  .header-sidebar-section {
+    width: auto;
+    min-width: 80px;
+  }
+  
+  .header-main-section h1 {
+    font-size: var(--font-size-lg);
+  }
+  
   .sidebar {
     position: fixed;
     left: 0;
-    top: 0;
-    height: 100vh;
+    top: 100px;
+    height: calc(100vh - 100px);
     z-index: 20;
     transform: translateX(-100%);
+    margin-top: 0;
   }
   
   .sidebar.sidebar-open {
@@ -313,19 +359,6 @@ header.main-header.header-transparent {
   
   .main-content {
     margin-left: 0;
-  }
-  
-  .main-header {
-    left: 0 !important;
-    padding-left: var(--spacing-4) !important;
-  }
-  
-  .main-header h1 {
-    font-size: var(--font-size-lg);
-  }
-  
-  .content {
-    padding-top: calc(var(--spacing-4) + 100px);
   }
 }
 </style>
