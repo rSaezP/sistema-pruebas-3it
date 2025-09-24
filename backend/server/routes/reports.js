@@ -23,12 +23,34 @@ router.get('/dashboard', (req, res) => {
     results.completedSessions = completedSessions.count || 0;
     
     const averageScore = db.prepare("SELECT AVG(percentage_score) as avg FROM test_sessions WHERE status = 'completed'").get();
-    results.averageScore = averageScore.avg || 0;
+    results.averageScore = Math.round(averageScore.avg || 0);
     
-    // Get recent COMPLETED sessions only
+    // Calcular tiempo promedio real (en minutos)
+    const averageTimeQuery = `
+      SELECT AVG(
+        CASE 
+          WHEN started_at IS NOT NULL AND finished_at IS NOT NULL 
+          THEN (julianday(finished_at) - julianday(started_at)) * 24 * 60
+          ELSE NULL 
+        END
+      ) as avg_time_minutes
+      FROM test_sessions 
+      WHERE status = 'completed' 
+        AND started_at IS NOT NULL 
+        AND finished_at IS NOT NULL
+    `;
+    const averageTimeResult = db.prepare(averageTimeQuery).get();
+    results.averageTime = Math.round(averageTimeResult.avg_time_minutes || 45);
+    
+    // Get recent COMPLETED sessions with duration
     const recentSessionsQuery = `
       SELECT ts.*, c.name as candidate_name, c.email, t.name as test_name,
-             ts.percentage_score, ts.status, ts.finished_at, ts.created_at
+             ts.percentage_score, ts.status, ts.finished_at, ts.created_at,
+             CASE 
+               WHEN ts.started_at IS NOT NULL AND ts.finished_at IS NOT NULL 
+               THEN ROUND((julianday(ts.finished_at) - julianday(ts.started_at)) * 24 * 60, 0)
+               ELSE ts.time_spent_seconds / 60 
+             END as duration_minutes
       FROM test_sessions ts
       JOIN candidates c ON ts.candidate_id = c.id
       JOIN tests t ON ts.test_id = t.id
