@@ -110,13 +110,12 @@
               {{ savedQuestionsCount }} de {{ testData.questions.length }} preguntas guardadas
             </div>
           </div>
-          <div class="questions-actions">
-            <!-- Componente de importación masiva -->
+          <div class="import-action">
             <BulkQuestionImporter
               @questionsImported="handleBulkImport"
-              style="margin-right: var(--spacing-2);"
             />
-            
+          </div>
+          <div class="add-questions-actions">
             <select v-model="newQuestionType" class="question-type-select">
               <option value="">Seleccionar tipo de pregunta</option>
               <option value="programming">Programación</option>
@@ -125,10 +124,14 @@
             </select>
             <button 
               @click="addQuestion" 
-              class="btn btn-primary btn-sm"
+              class="btn btn-primary"
               :disabled="!newQuestionType"
             >
-              + Agregar Pregunta
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; margin-right: 4px;">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Agregar Pregunta
             </button>
           </div>
         </div>
@@ -185,8 +188,19 @@
                   :class="isQuestionSaved(question.tempId) ? 'btn-success' : 'btn-primary'"
                   :disabled="isQuestionSaved(question.tempId)"
                 >
-                  <span v-if="isQuestionSaved(question.tempId)">✓ Pregunta Guardada</span>
-                  <span v-else>✓ Guardar Pregunta</span>
+                  <span v-if="isQuestionSaved(question.tempId)">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; margin-right: 4px;">
+                      <path d="M9 12L11 14L15 10"/>
+                      <circle cx="12" cy="12" r="10"/>
+                    </svg>
+                    Pregunta Guardada
+                  </span>
+                  <span v-else>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; margin-right: 4px;">
+                      <path d="M19 21V5C19 4.46957 18.7893 3.96086 18.4142 3.58579C18.0391 3.21071 17.5304 3 17 3H7C6.46957 3 5.96086 3.21071 5.58579 3.58579C5.21071 3.96086 5 4.46957 5 5V21L12 17L19 21Z"/>
+                    </svg>
+                    Guardar Pregunta
+                  </span>
                 </button>
               </div>
             </div>
@@ -271,7 +285,12 @@
             :disabled="loading"
           >
             <span v-if="loading">Guardando...</span>
-            <span v-else>✓ Guardar Prueba</span>
+            <span v-else>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; margin-right: 4px;">
+                <path d="M19 21V5C19 4.46957 18.7893 3.96086 18.4142 3.58579C18.0391 3.21071 17.5304 3 17 3H7C6.46957 3 5.96086 3.21071 5.58579 3.58579C5.21071 3.96086 5 4.46957 5 5V21L12 17L19 21Z"/>
+              </svg>
+              Guardar Prueba
+            </span>
           </button>
         </div>
       </div>
@@ -475,7 +494,7 @@ const saveTest = async () => {
     }
     
     // Create test
-    const testResponse = await fetch('/api/tests', {
+    const testResponse = await fetch('http://localhost:4000/api/tests', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -503,7 +522,7 @@ const saveTest = async () => {
       // Remove temp fields
       delete questionPayload.tempId
       
-      const questionResponse = await fetch('/api/tests/questions', {
+      const questionResponse = await fetch('http://localhost:4000/api/tests/questions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -519,7 +538,7 @@ const saveTest = async () => {
         // Save test cases for programming questions
         if (question.test_cases && question.test_cases.length > 0) {
           for (const testCase of question.test_cases) {
-            await fetch('/api/tests/test-cases', {
+            await fetch('http://localhost:4000/api/tests/test-cases', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json'
@@ -822,10 +841,11 @@ input:checked + .slider:before {
 .questions-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
   margin-bottom: var(--spacing-4);
   padding-bottom: var(--spacing-3);
   border-bottom: 1px solid #E5E7EB;
+  gap: var(--spacing-4);
 }
 
 .questions-header h2 {
@@ -837,10 +857,67 @@ input:checked + .slider:before {
   display: flex;
   gap: var(--spacing-2);
   align-items: center;
+  flex-shrink: 0;
+  margin-top: 0;
 }
 
+/* NUEVA ESTRUCTURA - FLEXBOX DIRECTO */
+.questions-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  flex: 1;
+}
+
+.import-action {
+  display: flex;
+  align-items: flex-end;
+}
+
+.add-questions-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+/* Estilos base para todos los elementos */
+.bulk-import-btn,
+.question-type-select,
+.add-questions-actions .btn {
+  height: 42px;
+  padding: 8px 12px;
+  border: 1px solid #005AEE;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+}
+
+/* Select más ancho para texto completo */
 .question-type-select {
-  min-width: 200px;
+  width: 260px;
+  background: white;
+  color: #005AEE;
+  cursor: pointer;
+}
+
+/* Botón importar - simplemente bajar */
+.import-action .bulk-import-btn {
+  background: white;
+  color: #005AEE;
+  white-space: nowrap;
+  margin-top: 24px;
+}
+
+/* Botón agregar */
+.add-questions-actions .btn-primary {
+  background: #005AEE;
+  color: white;
+  white-space: nowrap;
 }
 
 .questions-list {
