@@ -76,8 +76,11 @@ const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value;
 };
 
-const handleScroll = (event) => {
-  headerTransparent.value = event.target.scrollTop > 50;
+const handleScroll = (event: Event) => {
+  const target = event.target as HTMLElement;
+  if (target) {
+    headerTransparent.value = target.scrollTop > 50;
+  }
 };
 
 onMounted(() => {
@@ -141,7 +144,6 @@ const userEmail = computed(() => {
 }
 
 .logo-image {
-  width: 160px;
   height: 80px;
   object-fit: contain;
   transition: all var(--transition-base);
@@ -150,6 +152,14 @@ const userEmail = computed(() => {
 .sidebar-collapsed .logo-image {
   width: 60px;
   height: 60px;
+}
+
+.sidebar-collapsed .sidebar-header {
+  justify-content: center;
+}
+
+.sidebar-collapsed .logo {
+  display: none;
 }
 
 .sidebar-toggle {
