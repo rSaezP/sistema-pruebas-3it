@@ -108,7 +108,10 @@
                   class="btn-icon"
                   title="Reenviar invitación"
                 >
-                  📧
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 4H20C21.1 4 22 4.9 22 6V18C22 19.1 21.1 20 20 20H4C2.9 20 2 19.1 2 18V6C2 4.9 2.9 4 4 4Z"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                  </svg>
                 </button>
                 
                
@@ -121,7 +124,10 @@
                   :disabled="downloadingReports.has(candidate.id)"
                 >
                   <span v-if="downloadingReports.has(candidate.id)" class="spinner-sm"></span>
-                  <span v-else>📄</span>
+                  <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                  </svg>
                 </button>
                 
                 <button 
@@ -129,7 +135,12 @@
                   class="btn-icon text-error"
                   title="Eliminar candidato"
                 >
-                  🗑️
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3,6 5,6 21,6"/>
+                    <path d="M19 6V20C19 21 18 22 17 22H7C6 22 5 21 5 20V6M8 6V4C8 3 9 2 10 2H14C15 2 16 3 16 4V6"/>
+                    <line x1="10" y1="11" x2="10" y2="17"/>
+                    <line x1="14" y1="11" x2="14" y2="17"/>
+                  </svg>
                 </button>
               </td>
             </tr>
@@ -904,25 +915,31 @@ tr:hover {
 }
 
 .btn-icon {
-  background: none;
-  border: none;
-  color: #6b7280;
+  background: var(--blanco);
+  border: 1px solid var(--primary);
+  color: var(--primary);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   transition: all 0.2s;
 }
 
 .btn-icon:hover {
-  background-color: #f3f4f6;
-  color: var(--azul-electrico);
+  background-color: var(--primary);
+  color: var(--blanco);
+}
+
+.btn-icon.text-error {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .btn-icon.text-error:hover {
-  color: #ef4444;
+  background-color: var(--primary);
+  color: var(--blanco);
 }
 
 .btn-icon:disabled {

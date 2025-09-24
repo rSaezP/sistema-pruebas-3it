@@ -8,7 +8,7 @@
   --blanco: #FFFFFF;
   
   /* Colores adicionales para estados */
-  --success: #10B981;
+  --success: var(--primary);
   --warning: #F59E0B;
   --error: #EF4444;
   --info: var(--azul-electrico);
@@ -275,8 +275,8 @@ p {
 }
 
 .badge-success {
-  background-color: #D1FAE5;
-  color: #065F46;
+  background-color: var(--primary-light);
+  color: var(--primary);
 }
 
 .badge-warning {
@@ -330,8 +330,8 @@ p {
 }
 
 .alert-success {
-  background-color: #ECFDF5;
-  color: #065F46;
+  background-color: var(--primary-light);
+  color: var(--primary);
   border-left-color: var(--success);
 }
 

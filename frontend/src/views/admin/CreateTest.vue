@@ -150,7 +150,15 @@
                   class="question-status-indicator"
                   :class="isQuestionSaved(question.tempId) ? 'saved-indicator' : 'unsaved-indicator'"
                 >
-                  {{ isQuestionSaved(question.tempId) ? '✅ Guardada' : '⏳ Sin guardar' }}
+                  <svg v-if="isQuestionSaved(question.tempId)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 12L11 14L15 10"/>
+                    <circle cx="12" cy="12" r="10"/>
+                  </svg>
+                  <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12,6 12,12 16,14"/>
+                  </svg>
+                  {{ isQuestionSaved(question.tempId) ? ' Guardada' : ' Sin guardar' }}
                 </span>
               </div>
               <button @click="deleteQuestion(question.tempId)" class="btn-icon delete">

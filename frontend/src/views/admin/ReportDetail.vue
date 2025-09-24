@@ -22,7 +22,13 @@
       <!-- Información del Candidato -->
       <div class="candidate-info card">
         <div class="card-header">
-          <h2>👤 Información del Candidato</h2>
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; margin-right: 8px;">
+              <path d="M20 21V19C20 17.9391 19.5786 16.9217 18.8284 16.1716C18.0783 15.4214 17.0609 15 16 15H8C6.93913 15 5.92172 15.4214 5.17157 16.1716C4.42143 16.9217 4 17.9391 4 19V21"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+            Información del Candidato
+          </h2>
         </div>
         <div class="card-content">
           <div class="info-grid">

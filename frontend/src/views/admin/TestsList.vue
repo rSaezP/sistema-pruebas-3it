@@ -3,7 +3,11 @@
     <div class="header">
       <h1>Gestión de Pruebas</h1>
       <router-link to="/admin/tests/create" class="btn btn-primary">
-        ➕ Nueva Prueba
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Nueva Prueba
       </router-link>
     </div>
 
@@ -39,21 +43,32 @@
               class="btn-icon"
               title="Editar"
             >
-              ✏️
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4C3.46957 4 2.96086 4.21071 2.58579 4.58579C2.21071 4.96086 2 5.46957 2 6V20C2 20.5304 2.21071 21.0391 2.58579 21.4142C2.96086 21.7893 3.46957 22 4 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V13"/>
+                <path d="M18.5 2.50001C18.8978 2.10219 19.4374 1.87869 20 1.87869C20.5626 1.87869 21.1022 2.10219 21.5 2.50001C21.8978 2.89784 22.1213 3.4374 22.1213 4.00001C22.1213 4.56262 21.8978 5.10219 21.5 5.50001L12 15L8 16L9 12L18.5 2.50001Z"/>
+              </svg>
             </button>
             <button 
               @click="duplicateTest(test.id)"
               class="btn-icon"
               title="Duplicar"
             >
-              📋
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4C3.46957 15 2.96086 14.7893 2.58579 14.4142C2.21071 14.0391 2 13.5304 2 13V4C2 3.46957 2.21071 2.96086 2.58579 2.58579C2.96086 2.21071 3.46957 2 4 2H13C13.5304 2 14.0391 2.21071 14.4142 2.58579C14.7893 2.96086 15 3.46957 15 4V5"/>
+              </svg>
             </button>
             <button 
               @click="deleteTest(test.id)"
               class="btn-icon btn-danger"
               title="Eliminar"
             >
-              🗑️
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3,6 5,6 21,6"/>
+                <path d="M19 6V20C19 21 18 22 17 22H7C6 22 5 21 5 20V6M8 6V4C8 3 9 2 10 2H14C15 2 16 3 16 4V6"/>
+                <line x1="10" y1="11" x2="10" y2="17"/>
+                <line x1="14" y1="11" x2="14" y2="17"/>
+              </svg>
             </button>
           </div>
         </div>
@@ -97,7 +112,12 @@
     </div>
 
     <div v-else class="empty-state">
-      <div class="empty-icon">📝</div>
+      <div class="empty-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"/>
+          <polyline points="14,2 14,8 20,8"/>
+        </svg>
+      </div>
       <h3>No hay pruebas disponibles</h3>
       <p>Comienza creando tu primera prueba técnica</p>
       <router-link to="/admin/tests/create" class="btn btn-primary">
@@ -339,21 +359,31 @@ onMounted(() => {
 }
 
 .btn-icon {
-  background: none;
-  border: none;
+  background: var(--blanco);
+  border: 1px solid var(--primary);
+  color: var(--primary);
   padding: var(--spacing-1);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition: all var(--transition-base);
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-icon:hover {
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--primary);
+  color: var(--blanco);
+}
+
+.btn-icon.btn-danger {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .btn-icon.btn-danger:hover {
-  background: rgba(239, 68, 68, 0.1);
+  background: var(--primary);
+  color: var(--blanco);
 }
 
 .test-description {

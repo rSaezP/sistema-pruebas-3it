@@ -24,7 +24,12 @@
     <div v-else>
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-icon">📝</div>
+          <div class="stat-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"/>
+              <polyline points="14,2 14,8 20,8"/>
+            </svg>
+          </div>
           <div class="stat-content">
             <h3>{{ totalTests }}</h3>
             <p>Pruebas Creadas</p>
@@ -32,7 +37,12 @@
         </div>
 
         <div class="stat-card">
-          <div class="stat-icon">👥</div>
+          <div class="stat-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21V19C20 17.9391 19.5786 16.9217 18.8284 16.1716C18.0783 15.4214 17.0609 15 16 15H8C6.93913 15 5.92172 15.4214 5.17157 16.1716C4.42143 16.9217 4 17.9391 4 19V21"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </div>
           <div class="stat-content">
             <h3>{{ totalCandidates }}</h3>
             <p>Candidatos Registrados</p>
@@ -40,7 +50,12 @@
         </div>
 
         <div class="stat-card">
-          <div class="stat-icon">✅</div>
+          <div class="stat-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 12L11 14L15 10"/>
+              <circle cx="12" cy="12" r="10"/>
+            </svg>
+          </div>
           <div class="stat-content">
             <h3>{{ completedSessions }}</h3>
             <p>Sesiones Completadas</p>
@@ -48,7 +63,11 @@
         </div>
 
         <div class="stat-card">
-          <div class="stat-icon">📊</div>
+          <div class="stat-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/>
+            </svg>
+          </div>
           <div class="stat-content">
             <h3>{{ averageScore }}%</h3>
             <p>Promedio General</p>
@@ -56,7 +75,12 @@
         </div>
         
         <div class="stat-card">
-          <div class="stat-icon">⏱️</div>
+          <div class="stat-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12,6 12,12 16,14"/>
+            </svg>
+          </div>
           <div class="stat-content">
             <h3>{{ averageTime }} min</h3>
             <p>Tiempo Promedio</p>
@@ -131,7 +155,10 @@
                     @click="viewSessionDetails(session.id)"
                     title="Ver detalles"
                   >
-                    👁️
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12S5 4 12 4S23 12 23 12S19 20 12 20S1 12 1 12Z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
                   </button>
                 </td>
               </tr>
@@ -575,8 +602,24 @@ onBeforeUnmount(() => {
 }
 
 .stat-icon {
-  font-size: 2.5rem;
-  color: var(--azul-electrico);
+  color: var(--primary);
+  background-color: var(--blanco);
+  border: 2px solid var(--primary);
+  border-radius: var(--radius-xl);
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 80px;
+}
+
+.stat-icon svg {
+  width: 32px;
+  height: 32px;
+  stroke: var(--primary);
+  fill: none;
+  stroke-width: 2;
 }
 
 .stat-content h3 {
@@ -716,7 +759,7 @@ onBeforeUnmount(() => {
 }
 
 .score-fill.excellent {
-  background-color: #28a745;
+  background-color: var(--primary);
 }
 
 .score-fill.good {
@@ -755,12 +798,12 @@ onBeforeUnmount(() => {
 }
 
 .btn-icon {
-  background: none;
-  border: none;
-  color: var(--azul-tritiano);
+  background: var(--blanco);
+  border: 1px solid var(--primary);
+  color: var(--primary);
   cursor: pointer;
   padding: var(--spacing-1);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   transition: all var(--transition-base);
   display: inline-flex;
   align-items: center;
@@ -768,8 +811,8 @@ onBeforeUnmount(() => {
 }
 
 .btn-icon:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  color: var(--azul-electrico);
+  background-color: var(--primary);
+  color: var(--blanco);
 }
 
 .empty-state {
@@ -846,7 +889,7 @@ onBeforeUnmount(() => {
 }
 
 .skill-progress-bar.excellent {
-  background-color: #28a745;
+  background-color: var(--primary);
 }
 
 .skill-progress-bar.good {
@@ -888,11 +931,24 @@ onBeforeUnmount(() => {
 }
 
 .stat-icon {
-  font-size: 48px;
-  min-width: 60px;
+  color: var(--primary);
+  background-color: var(--blanco);
+  border: 2px solid var(--primary);
+  border-radius: var(--radius-xl);
+  width: 80px;
+  height: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 80px;
+}
+
+.stat-icon svg {
+  width: 32px;
+  height: 32px;
+  stroke: var(--primary);
+  fill: none;
+  stroke-width: 2;
 }
 
 /* Table container */
