@@ -4,7 +4,7 @@
     <aside class="sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
       <div class="sidebar-header">
         <div class="logo">
-          <h2>3IT Pruebas</h2>
+          <img src="@/assets/logo-3it.png" alt="3IT Logo" class="logo-image">
         </div>
         <button @click="toggleSidebar" class="sidebar-toggle">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -92,13 +92,14 @@ const userEmail = computed(() => {
 
 .sidebar {
   width: 280px;
-  background-color: var(--azul-tritiano);
-  color: var(--blanco);
+  background-color: var(--blanco);
+  color: var(--azul-tritiano);
   display: flex;
   flex-direction: column;
   transition: width var(--transition-base);
   position: relative;
   z-index: 10;
+  box-shadow: 2px 0 10px rgba(0,0,0,0.1);
 }
 
 .sidebar-collapsed {
@@ -107,27 +108,37 @@ const userEmail = computed(() => {
 
 .sidebar-header {
   padding: var(--spacing-4);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: var(--blanco);
+  border-bottom: 1px solid #E5E7EB;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  height: 100px;
 }
 
-.logo h2 {
-  font-size: var(--font-size-xl);
-  font-weight: 600;
-  margin: 0;
-  transition: opacity var(--transition-base);
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
 }
 
-.sidebar-collapsed .logo h2 {
-  opacity: 0;
+.logo-image {
+  width: 160px;
+  height: 80px;
+  object-fit: contain;
+  transition: all var(--transition-base);
+}
+
+.sidebar-collapsed .logo-image {
+  width: 60px;
+  height: 60px;
 }
 
 .sidebar-toggle {
   background: none;
   border: none;
-  color: var(--blanco);
+  color: var(--azul-tritiano);
   cursor: pointer;
   padding: var(--spacing-1);
   border-radius: var(--radius-sm);
@@ -135,7 +146,7 @@ const userEmail = computed(() => {
 }
 
 .sidebar-toggle:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(0, 0, 38, 0.1);
 }
 
 .sidebar-nav {
@@ -148,24 +159,28 @@ const userEmail = computed(() => {
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-3) var(--spacing-4);
-  color: var(--blanco);
+  color: var(--azul-tritiano);
   text-decoration: none;
   transition: all var(--transition-base);
   cursor: pointer;
   border: none;
   background: none;
-  width: 100%;
+  width: calc(100% - var(--spacing-4));
   text-align: left;
+  border-radius: var(--radius-lg);
+  margin: 2px var(--spacing-2);
 }
 
 .nav-item:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  padding-left: var(--spacing-5);
+  background-color: rgba(0, 90, 238, 0.1);
+  color: var(--azul-electrico);
+  transform: translateX(4px);
 }
 
 .nav-item.router-link-active {
-  background-color: var(--turquesa);
-  border-right: 4px solid var(--blanco);
+  background-color: var(--azul-electrico);
+  color: var(--blanco);
+  border-radius: var(--radius-lg);
 }
 
 .nav-item span {
@@ -191,12 +206,14 @@ const userEmail = computed(() => {
   align-items: center;
   justify-content: space-between;
   box-shadow: var(--shadow-sm);
+  height: 100px;
 }
 
 .main-header h1 {
-  color: var(--azul-tritiano);
-  font-size: var(--font-size-2xl);
+  color: var(--primary);
+  font-size: var(--font-size-3xl);
   margin: 0;
+  font-weight: 700;
 }
 
 .user-info {

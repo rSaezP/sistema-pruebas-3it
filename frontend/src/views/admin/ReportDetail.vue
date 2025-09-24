@@ -353,7 +353,7 @@ onMounted(() => {
 }
 
 .btn-back:hover {
-  background: var(--turquesa);
+  background: #0056d6;
   transform: translateX(-2px);
 }
 
@@ -540,8 +540,8 @@ onMounted(() => {
 }
 
 .type {
-  background: rgba(44, 213, 196, 0.1);
-  color: var(--turquesa);
+  background: rgba(0, 90, 238, 0.1);
+  color: var(--azul-electrico);
 }
 
 .score-info {
@@ -714,7 +714,7 @@ onMounted(() => {
 }
 
 .btn-primary:hover {
-  background: var(--turquesa);
+  background: #0056d6;
   transform: translateY(-1px);
 }
 

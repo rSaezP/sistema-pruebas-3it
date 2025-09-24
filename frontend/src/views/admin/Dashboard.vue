@@ -471,7 +471,7 @@ onBeforeUnmount(() => {
 .dashboard-header h1 {
   color: var(--azul-tritiano);
   font-size: var(--font-size-3xl);
-  margin-bottom: var(--spacing-2);
+  margin: 0;
 }
 
 .dashboard-header p {
@@ -576,10 +576,7 @@ onBeforeUnmount(() => {
 
 .stat-icon {
   font-size: 2.5rem;
-  background: linear-gradient(135deg, var(--azul-tritiano), var(--turquesa));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--azul-electrico);
 }
 
 .stat-content h3 {
@@ -654,7 +651,7 @@ onBeforeUnmount(() => {
 .btn-text {
   background: none;
   border: none;
-  color: var(--azul-electrico);
+  color: var(--primary);
   font-weight: 500;
   cursor: pointer;
   display: flex;
@@ -723,7 +720,7 @@ onBeforeUnmount(() => {
 }
 
 .score-fill.good {
-  background-color: var(--azul-electrico);
+  background-color: var(--primary);
 }
 
 .score-fill.average {
@@ -853,7 +850,7 @@ onBeforeUnmount(() => {
 }
 
 .skill-progress-bar.good {
-  background-color: var(--azul-electrico);
+  background-color: var(--primary);
 }
 
 .skill-progress-bar.average {

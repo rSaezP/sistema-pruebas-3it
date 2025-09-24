@@ -13,6 +13,7 @@
     <!-- Filtros -->
     <div class="filters">
       <div class="search-box">
+        <label class="input-label">Buscar candidatos:</label>
         <input 
           type="text" 
           v-model="searchQuery" 
@@ -787,9 +788,10 @@ onMounted(() => {
 }
 
 .filters {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr auto;
   gap: 1rem;
+  align-items: end;
   margin-bottom: 1.5rem;
   padding: 1rem;
   background-color: var(--blanco);
@@ -799,8 +801,15 @@ onMounted(() => {
 
 .search-box {
   position: relative;
-  flex: 1;
-  min-width: 250px;
+  display: flex;
+  flex-direction: column;
+}
+
+.search-box .input-label {
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--azul-tritiano);
 }
 
 .search-box input {
@@ -811,15 +820,14 @@ onMounted(() => {
 .search-box i {
   position: absolute;
   left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: 50%;
+  transform: translateY(50%);
   color: #6b7280;
 }
 
 .filter-group {
   display: flex;
   flex-direction: column;
-  min-width: 200px;
 }
 
 .filter-group label {
@@ -1031,8 +1039,9 @@ tr:hover {
   }
   
   .filters {
-    flex-direction: column;
+    grid-template-columns: 1fr;
     gap: 1rem;
+    align-items: stretch;
   }
   
   .filter-group {
