@@ -82,7 +82,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="candidate in filteredCandidates" :key="candidate.id">
+            <tr v-for="candidate in paginatedCandidates" :key="candidate.id">
               <td>{{ candidate.name }}</td>
               <td>{{ candidate.email }}</td>
               <td>{{ getTestName(candidate.testId) }}</td>
@@ -165,7 +165,8 @@
         </button>
         
         <span class="page-info">
-          Página {{ currentPage }} de {{ totalPages }}
+          Página {{ currentPage }} de {{ totalPages }} 
+          ({{ filteredCandidates.length }} candidato{{ filteredCandidates.length !== 1 ? 's' : '' }})
         </span>
         
         <button 
@@ -296,7 +297,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useToast } from 'vue-toastification';
 
 // Tipos de datos
@@ -387,7 +388,11 @@ const totalPages = computed(() => {
   return Math.ceil(filteredCandidates.value.length / itemsPerPage);
 });
 
-// Usamos directamente filteredCandidates en la plantilla con v-for
+const paginatedCandidates = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  return filteredCandidates.value.slice(start, end);
+});
 
 const isFormValid = computed(() => {
   return (
@@ -404,13 +409,25 @@ const minExpirationDate = computed(() => {
   return tomorrow.toISOString().split('T')[0];
 });
 
+// Watchers para resetear página cuando cambien los filtros
+watch([searchQuery, statusFilter, testFilter], () => {
+  currentPage.value = 1;
+});
+
+// Watcher para ajustar la página actual si queda fuera del rango
+watch(totalPages, (newTotalPages) => {
+  if (currentPage.value > newTotalPages && newTotalPages > 0) {
+    currentPage.value = newTotalPages;
+  }
+});
+
 // Métodos
 const fetchCandidates = async () => {
   try {
     loading.value = true;
     error.value = '';
     
-    const response = await fetch('/api/candidates');
+    const response = await fetch('http://localhost:4000/api/candidates');
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -444,7 +461,7 @@ const fetchCandidates = async () => {
 
 const fetchTests = async () => {
   try {
-    const response = await fetch('/api/tests');
+    const response = await fetch('http://localhost:4000/api/tests');
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -489,7 +506,7 @@ const sendInvitation = async () => {
     console.log('Tipo de test_id:', typeof testId);
 
     // Crear el candidato
-    const candidateResponse = await fetch('/api/candidates', {
+    const candidateResponse = await fetch('http://localhost:4000/api/candidates', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -523,7 +540,7 @@ const sendInvitation = async () => {
     const candidateData = await candidateResponse.json();
     
     // Enviar email de invitación
-    const emailResponse = await fetch('/api/email/send-invitation', {
+    const emailResponse = await fetch('http://localhost:4000/api/email/send-invitation', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -567,7 +584,7 @@ const resendInvitation = async (candidateId: string | number) => {
     }
     
     // Reenviar email de invitación
-    const response = await fetch('/api/email/send-invitation', {
+    const response = await fetch('http://localhost:4000/api/email/send-invitation', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -603,7 +620,7 @@ const deleteCandidate = async () => {
   try {
     isDeleting.value = true;
     
-    const response = await fetch(`/api/candidates/session/${candidateToDelete.value.id}`, {
+    const response = await fetch(`http://localhost:4000/api/candidates/session/${candidateToDelete.value.id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -722,7 +739,7 @@ const downloadReport = async (candidateId: string, candidateName: string) => {
     downloadingReports.value.add(candidateId);
     
     // Realizar la petición al endpoint PDF
-    const response = await fetch(`/api/candidates/${candidateId}/reports/pdf`, {
+    const response = await fetch(`http://localhost:4000/api/candidates/${candidateId}/reports/pdf`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`,
