@@ -29,7 +29,7 @@
                 <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"/>
                 <polyline points="14,2 14,8 20,8"/>
               </svg>
-              Formato EvalArt
+              
             </h4>
             <p>Pega aquí tus preguntas siguiendo el formato:</p>
             <div class="format-example">
@@ -42,7 +42,7 @@
             <label>Pegar preguntas aquí:</label>
             <textarea
               v-model="importText"
-              placeholder="Pega aquí las preguntas en formato EvalArt..."
+              placeholder="Pega aquí las preguntas..."
               class="import-textarea"
               rows="12"
             ></textarea>
