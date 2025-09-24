@@ -187,9 +187,12 @@ const filteredTests = computed(() => {
 const fetchTests = async () => {
   loading.value = true
   try {
-    const response = await fetch('/api/tests')
+    const response = await fetch('http://localhost:4000/api/tests')
     if (response.ok) {
-      tests.value = await response.json()
+      const data = await response.json()
+      console.log('📊 Datos recibidos de la API:', data)
+      console.log('🔍 Primer test:', data[0])
+      tests.value = data
     } else {
       console.error('Error fetching tests:', response.statusText)
     }

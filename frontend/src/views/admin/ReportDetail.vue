@@ -55,13 +55,22 @@
       <!-- Resumen de la Evaluación -->
       <div class="evaluation-summary card">
         <div class="card-header">
-          <h2>📊 Resumen de la Evaluación</h2>
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; margin-right: 8px;">
+              <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/>
+            </svg>
+            Resumen de la Evaluación
+          </h2>
         </div>
         <div class="card-content">
           <div class="summary-grid">
             <div class="summary-item">
-              <div class="summary-icon" style="background: rgba(0, 90, 238, 0.1);">
-                <span style="color: var(--azul-electrico);">🎯</span>
+              <div class="summary-icon" style="background: var(--primary-light);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <circle cx="12" cy="12" r="6"/>
+                  <circle cx="12" cy="12" r="2"/>
+                </svg>
               </div>
               <div class="summary-content">
                 <h3>Puntuación Total</h3>
@@ -71,8 +80,11 @@
             </div>
             
             <div class="summary-item">
-              <div class="summary-icon" style="background: rgba(44, 213, 196, 0.1);">
-                <span style="color: var(--turquesa);">⏱️</span>
+              <div class="summary-icon" style="background: var(--primary-light);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12,6 12,12 16,14"/>
+                </svg>
               </div>
               <div class="summary-content">
                 <h3>Tiempo Utilizado</h3>
@@ -82,8 +94,11 @@
             </div>
             
             <div class="summary-item">
-              <div class="summary-icon" style="background: rgba(255, 193, 7, 0.1);">
-                <span style="color: #ffc107;">📝</span>
+              <div class="summary-icon" style="background: var(--primary-light);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+                  <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"/>
+                  <polyline points="14,2 14,8 20,8"/>
+                </svg>
               </div>
               <div class="summary-content">
                 <h3>Preguntas</h3>
@@ -93,8 +108,10 @@
             </div>
 
             <div class="summary-item">
-              <div class="summary-icon" style="background: rgba(40, 167, 69, 0.1);">
-                <span style="color: #28a745;">📈</span>
+              <div class="summary-icon" style="background: var(--primary-light);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+                  <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/>
+                </svg>
               </div>
               <div class="summary-content">
                 <h3>Percentil</h3>
@@ -109,7 +126,13 @@
       <!-- Respuestas Detalladas -->
       <div class="answers-section card">
         <div class="card-header">
-          <h2>📋 Respuestas Detalladas</h2>
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; margin-right: 8px;">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4C3.46957 15 2.96086 14.7893 2.58579 14.4142C2.21071 14.0391 2 13.5304 2 13V4C2 3.46957 2.21071 2.96086 2.58579 2.58579C2.96086 2.21071 3.46957 2 4 2H13C13.5304 2 14.0391 2.21071 14.4142 2.58579C14.7893 2.96086 15 3.46957 15 4V5"/>
+            </svg>
+            Respuestas Detalladas
+          </h2>
         </div>
         <div class="card-content">
           <div v-for="(answer, index) in sessionData.answers" :key="answer.id" class="answer-item">
@@ -148,7 +171,15 @@
                 <div v-else-if="answer.type === 'multiple_choice'" class="multiple-choice-answer">
                   <div class="selected-answer" :class="{ 'correct': answer.is_correct, 'incorrect': !answer.is_correct }">
                     <strong>Seleccionada:</strong> {{ answer.formatted_answer || 'No respondió' }}
-                    <span class="result-icon">{{ answer.is_correct ? '✅' : '❌' }}</span>
+                    <svg v-if="answer.is_correct" class="result-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+                      <path d="M9 12L11 14L15 10"/>
+                      <circle cx="12" cy="12" r="10"/>
+                    </svg>
+                    <svg v-else class="result-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+                      <line x1="18" y1="6" x2="6" y2="18"/>
+                      <line x1="6" y1="6" x2="18" y2="18"/>
+                      <circle cx="12" cy="12" r="10"/>
+                    </svg>
                   </div>
                   
                   <div v-if="!answer.is_correct && answer.correct_option_text" class="correct-answer">
@@ -182,14 +213,27 @@
               </div>
 
               <div v-if="answer.compilation_successful === 0" class="compilation-error">
-                <h4>❌ Error de Compilación:</h4>
+                <h4>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" style="display: inline; margin-right: 4px;">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                    <circle cx="12" cy="12" r="10"/>
+                  </svg>
+                  Error de Compilación:
+                </h4>
                 <p class="error-text">El código no compiló correctamente</p>
               </div>
 
               <div v-if="answer.test_cases_passed !== undefined" class="test-results">
                 <h4>Casos de Prueba:</h4>
                 <div class="test-cases-summary">
-                  <span class="passed">✅ {{ answer.test_cases_passed || 0 }} pasaron</span>
+                  <span class="passed">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; margin-right: 4px;">
+                      <path d="M9 12L11 14L15 10"/>
+                      <circle cx="12" cy="12" r="10"/>
+                    </svg>
+                    {{ answer.test_cases_passed || 0 }} pasaron
+                  </span>
                   <span class="total">de {{ answer.test_cases_total || 0 }} totales</span>
                 </div>
               </div>
@@ -205,7 +249,12 @@
       <!-- Análisis por Categoría -->
       <div v-if="Object.keys(sessionData.scoresByCategory).length > 0" class="category-analysis card">
         <div class="card-header">
-          <h2>📈 Análisis por Categoría</h2>
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; margin-right: 8px;">
+              <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/>
+            </svg>
+            Análisis por Categoría
+          </h2>
         </div>
         <div class="card-content">
           <div class="categories-grid">

@@ -49,7 +49,7 @@
 
     <!-- Main content -->
     <main class="main-content">
-      <header class="main-header">
+      <header class="main-header" :class="{ 'header-transparent': headerTransparent }">
         <h1>Sistema de Pruebas Técnicas 3IT</h1>
         <div class="user-info">
           <span>Bienvenido</span>
@@ -65,20 +65,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 
 const authStore = useAuthStore();
 const sidebarCollapsed = ref(false);
+const headerTransparent = ref(false);
 
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value;
 };
 
-// Get user info from Cognito
+const handleScroll = (event) => {
+  headerTransparent.value = event.target.scrollTop > 50;
+};
+
+onMounted(() => {
+  const contentElement = document.querySelector('.content');
+  if (contentElement) {
+    contentElement.addEventListener('scroll', handleScroll);
+  }
+});
+
+onUnmounted(() => {
+  const contentElement = document.querySelector('.content');
+  if (contentElement) {
+    contentElement.removeEventListener('scroll', handleScroll);
+  }
+});
+
 const userEmail = computed(() => {
   const userInfo = authStore.user as any;
-  // Solo el email, no el nombre de usuario
   return userInfo?.email || 'usuario@email.com';
 });
 </script>
@@ -207,6 +224,16 @@ const userEmail = computed(() => {
   justify-content: space-between;
   box-shadow: var(--shadow-sm);
   height: 100px;
+  position: fixed;
+  top: 0;
+  left: 280px;
+  right: 0;
+  z-index: 15;
+  transition: all 0.3s ease;
+}
+
+.sidebar-collapsed ~ .main-content .main-header {
+  left: 80px;
 }
 
 .main-header h1 {
@@ -239,11 +266,27 @@ const userEmail = computed(() => {
 .content {
   flex: 1;
   padding: var(--spacing-4);
+  padding-top: calc(var(--spacing-4) + 100px);
   overflow-y: auto;
   background-color: var(--gris);
 }
 
-/* Responsive */
+.header-transparent {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  box-shadow: 0 1px 20px rgba(0, 0, 0, 0.1) !important;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.5) !important;
+}
+
+header.main-header.header-transparent {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  box-shadow: 0 1px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;
@@ -262,8 +305,17 @@ const userEmail = computed(() => {
     margin-left: 0;
   }
   
+  .main-header {
+    left: 0 !important;
+    padding-left: var(--spacing-4) !important;
+  }
+  
   .main-header h1 {
     font-size: var(--font-size-lg);
+  }
+  
+  .content {
+    padding-top: calc(var(--spacing-4) + 100px);
   }
 }
 </style>

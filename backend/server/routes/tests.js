@@ -10,7 +10,8 @@ router.get('/', (req, res) => {
       SELECT t.*,
              COUNT(DISTINCT s.id) as total_sessions,
              COUNT(DISTINCT CASE WHEN s.status = 'completed' THEN s.id END) as completed_sessions,
-             AVG(CASE WHEN s.status = 'completed' THEN s.percentage_score END) as avg_score
+             AVG(CASE WHEN s.status = 'completed' THEN s.percentage_score END) as avg_score,
+             (SELECT COUNT(*) FROM questions WHERE test_id = t.id) as questions_count
       FROM tests t
       LEFT JOIN test_sessions s ON t.id = s.test_id
       GROUP BY t.id
@@ -18,6 +19,16 @@ router.get('/', (req, res) => {
     `;
 
     const tests = db.prepare(testsQuery).all();
+    
+    console.log('📊 Tests enviados al frontend:', tests.length);
+    if (tests.length > 0) {
+      console.log('🔍 Primer test:', {
+        id: tests[0].id,
+        name: tests[0].name,
+        questions_count: tests[0].questions_count
+      });
+    }
+    
     res.json(tests);
   } catch (error) {
     console.error('Error al obtener pruebas:', error);

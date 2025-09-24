@@ -215,9 +215,25 @@ router.get('/session/:sessionId', (req, res) => {
       return acc;
     }, {});
 
-    // Calculate percentile (mock calculation - in production compare with other candidates)
-    const percentile = session.percentage_score ? 
-      Math.min(95, Math.max(5, session.percentage_score + Math.random() * 10 - 5)) : 0;
+    // Calculate real percentile based on other candidates who took the same test
+    let percentile = 0;
+    if (session.percentage_score !== null && session.percentage_score !== undefined) {
+      const percentileQuery = `
+        SELECT COUNT(*) as lower_scores, 
+               (SELECT COUNT(*) FROM test_sessions WHERE test_id = ? AND status = 'completed' AND percentage_score IS NOT NULL) as total_scores
+        FROM test_sessions 
+        WHERE test_id = ? 
+          AND status = 'completed' 
+          AND percentage_score IS NOT NULL 
+          AND percentage_score < ?
+      `;
+      
+      const percentileResult = db.prepare(percentileQuery).get(session.test_id, session.test_id, session.percentage_score);
+      
+      if (percentileResult && percentileResult.total_scores > 0) {
+        percentile = Math.round((percentileResult.lower_scores / percentileResult.total_scores) * 100);
+      }
+    }
 
     res.json({
       session: { ...session, percentile },
