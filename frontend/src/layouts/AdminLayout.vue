@@ -28,7 +28,10 @@
     </header>
 
     <!-- Sidebar original SIN la parte del header -->
-    <aside class="sidebar" :class="{ 'sidebar-collapsed': sidebarCollapsed }">
+    <aside class="sidebar" :class="{ 
+      'sidebar-collapsed': sidebarCollapsed,
+      'sidebar-hidden': headerHidden
+    }">
       <nav class="sidebar-nav">
         <router-link to="/admin/dashboard" class="nav-item">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -64,7 +67,9 @@
     </aside>
 
     <!-- Main content original -->
-    <main class="main-content">
+    <main class="main-content" :class="{ 
+      'content-expanded': headerHidden 
+    }">
       <div class="content">
         <router-view />
       </div>
@@ -86,6 +91,8 @@ const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value;
 };
 
+let scrollTimer: number | null = null;
+
 const handleScroll = (event: Event) => {
   const target = event.target as HTMLElement;
   if (target) {
@@ -93,20 +100,31 @@ const handleScroll = (event: Event) => {
     const scrollingDown = scrollTop > lastScrollTop;
     const scrollDistance = Math.abs(scrollTop - lastScrollTop);
     
-    // Solo actuar si hay un scroll significativo
-    if (scrollDistance > 3) {
-      // Transparencia gradual desde los 30px
-      headerTransparent.value = scrollTop > 30;
-      
-      // Desvanecido gradual con scroll hacia abajo
-      if (scrollTop > 80 && scrollingDown && scrollDistance > 8) {
-        headerHidden.value = true;
-      } 
-      // Reaparecer con scroll hacia arriba
-      else if (!scrollingDown || scrollTop <= 60) {
-        headerHidden.value = false;
-      }
+    // Debounce el scroll para evitar cambios erráticos
+    if (scrollTimer) {
+      clearTimeout(scrollTimer);
     }
+    
+    scrollTimer = window.setTimeout(() => {
+      // Solo actuar si hay un scroll significativo
+      if (scrollDistance > 10) {
+        // Transparencia gradual desde los 30px
+        headerTransparent.value = scrollTop > 30;
+        
+        // Desvanecido gradual con scroll hacia abajo
+        if (scrollTop > 100 && scrollingDown && scrollDistance > 15) {
+          headerHidden.value = true;
+        } 
+        // Reaparecer con scroll hacia arriba
+        else if (!scrollingDown && scrollDistance > 15) {
+          headerHidden.value = false;
+        }
+        // Siempre mostrar si estamos arriba del todo
+        else if (scrollTop <= 50) {
+          headerHidden.value = false;
+        }
+      }
+    }, 50); // 50ms de delay para estabilizar
     
     lastScrollTop = scrollTop;
   }
@@ -123,6 +141,10 @@ onUnmounted(() => {
   const contentElement = document.querySelector('.content');
   if (contentElement) {
     contentElement.removeEventListener('scroll', handleScroll);
+  }
+  // Limpiar timer si existe
+  if (scrollTimer) {
+    clearTimeout(scrollTimer);
   }
 });
 
@@ -146,30 +168,26 @@ const userEmail = computed(() => {
   left: 0;
   right: 0;
   height: 100px;
-  background-color: var(--blanco);
+  background-color: #FFFFFF;
   border-bottom: 1px solid #E5E7EB;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   display: flex;
   z-index: 15;
-  transition: opacity 0.5s ease-in-out, 
-              background-color 0.3s ease,
-              backdrop-filter 0.3s ease,
-              box-shadow 0.3s ease;
-  transform: translateY(0);
-  opacity: 1;
+  transition: opacity 0.4s ease-in-out, visibility 0.4s ease-in-out;
 }
 
 .header-transparent {
-  background-color: rgba(255, 255, 255, 0.85) !important;
+  background-color: #FFFFFF !important;
   backdrop-filter: blur(10px) !important;
   -webkit-backdrop-filter: blur(10px) !important;
-  box-shadow: 0 1px 20px rgba(0, 0, 0, 0.1) !important;
-  border-bottom: 1px solid rgba(229, 231, 235, 0.5) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
+  border-bottom: 1px solid #E5E7EB !important;
 }
 
 .header-hidden {
-  opacity: 0.15 !important;
-  pointer-events: none;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 /* Sección del sidebar en el header */
@@ -259,15 +277,22 @@ const userEmail = computed(() => {
 /* Sidebar original */
 .sidebar {
   width: 280px;
-  background-color: var(--blanco);
+  background-color: #FFFFFF;
   color: var(--azul-tritiano);
   display: flex;
   flex-direction: column;
-  transition: width var(--transition-base);
+  transition: opacity 0.4s ease-in-out, visibility 0.4s ease-in-out;
   position: relative;
   z-index: 10;
-  box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   margin-top: 100px; /* Compensar header fijo */
+}
+
+/* Efectos de scroll: sidebar oculto */
+.sidebar-hidden {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 .sidebar-collapsed {
@@ -323,6 +348,14 @@ const userEmail = computed(() => {
   flex-direction: column;
   overflow: hidden;
   margin-top: 100px; /* Compensar header fijo */
+  transition: all 0.4s ease-in-out;
+}
+
+/* Contenido expandido cuando header y sidebar están ocultos */
+.content-expanded {
+  margin-left: -280px !important;
+  margin-top: 0 !important;
+  padding-top: 20px;
 }
 
 .content {

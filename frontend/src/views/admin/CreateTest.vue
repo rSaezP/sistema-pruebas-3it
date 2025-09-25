@@ -103,35 +103,35 @@
     <!-- Step 2: Add Questions -->
     <div v-if="currentStep === 2" class="step-content">
       <div class="questions-section">
-        <div class="questions-header">
-          <div class="questions-header-left">
-            <h2>Preguntas de la Prueba</h2>
-            <div v-if="testData.questions.length > 0" class="questions-progress">
-              {{ savedQuestionsCount }} de {{ testData.questions.length }} preguntas guardadas
-            </div>
-          </div>
-          <div class="import-action">
-            <BulkQuestionImporter
-              @questionsImported="handleBulkImport"
-            />
-          </div>
-          <div class="add-questions-actions">
-            <select v-model="newQuestionType" class="question-type-select">
-              <option value="">Seleccionar tipo de pregunta</option>
+        <!-- Header minimalista -->
+        <div class="section-header">
+          <h2>Preguntas</h2>
+          <span v-if="testData.questions.length > 0" class="questions-count">
+            {{ savedQuestionsCount }}/{{ testData.questions.length }}
+          </span>
+        </div>
+
+        <!-- Toolbar responsive -->
+        <div class="questions-toolbar">
+          <BulkQuestionImporter @questionsImported="handleBulkImport" />
+          
+          <div class="add-question-group">
+            <select v-model="newQuestionType" class="question-select">
+              <option value="">Tipo de pregunta</option>
               <option value="programming">Programación</option>
               <option value="sql">SQL</option>
               <option value="multiple_choice">Selección Múltiple</option>
             </select>
             <button 
               @click="addQuestion" 
-              class="btn btn-primary"
+              class="add-btn"
               :disabled="!newQuestionType"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; margin-right: 4px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
-              Agregar Pregunta
+              Agregar
             </button>
           </div>
         </div>
@@ -206,9 +206,15 @@
             </div>
           </div>
 
-          <div v-if="testData.questions.length === 0" class="empty-questions">
-            <p>Aún no has agregado preguntas a esta prueba.</p>
-            <p>Selecciona un tipo de pregunta y haz clic en "Agregar Pregunta" para comenzar.</p>
+          <div v-if="testData.questions.length === 0" class="empty-state">
+            <div class="empty-icon">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <p>Sin preguntas</p>
           </div>
         </div>
 
@@ -872,28 +878,34 @@ input:checked + .slider:before {
 .import-action {
   display: flex;
   align-items: flex-end;
+  height: 42px;
 }
 
 .add-questions-actions {
   display: flex;
   align-items: flex-end;
   gap: 12px;
+  height: 42px;
 }
 
-/* Estilos base para todos los elementos */
+/* Estilos base para todos los elementos - FORZAR MISMA ALTURA Y ALINEACIÓN */
 .bulk-import-btn,
 .question-type-select,
-.add-questions-actions .btn {
-  height: 42px;
-  padding: 8px 12px;
-  border: 1px solid #005AEE;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.add-questions-actions .btn,
+.import-action .btn,
+.import-action button {
+  height: 42px !important;
+  padding: 8px 12px !important;
+  border: 1px solid #005AEE !important;
+  border-radius: 6px !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  vertical-align: bottom !important;
+  line-height: 1.2 !important;
   margin: 0;
 }
 
@@ -1323,5 +1335,176 @@ input:checked + .slider:before {
   font-size: var(--font-size-sm);
   color: #6B7280;
   font-weight: 500;
+}
+
+/* === NUEVOS ESTILOS MINIMALISTAS === */
+
+/* Header minimalista */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.section-header h2 {
+  color: #1f2937;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.questions-count {
+  background: #f3f4f6;
+  color: #6b7280;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Toolbar responsive - FUERZA ALINEACIÓN */
+.questions-toolbar {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.add-question-group {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+/* Forzar contenedores a misma altura */
+.questions-toolbar > * {
+  height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+/* Estilos unificados y minimalistas - INCLUYE BOTÓN DE IMPORTAR */
+.question-select,
+.add-btn,
+.questions-toolbar .bulk-import-btn,
+.questions-toolbar button {
+  height: 40px !important;
+  padding: 8px 16px !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  background: white !important;
+  color: #374151 !important;
+  transition: all 0.2s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin: 0 !important;
+  vertical-align: top !important;
+  box-sizing: border-box !important;
+}
+
+.question-select {
+  min-width: 180px;
+  cursor: pointer;
+}
+
+.add-btn {
+  background: #005AEE;
+  border-color: #005AEE;
+  color: white;
+  cursor: pointer;
+}
+
+.add-btn:hover:not(:disabled) {
+  background: #0056d6;
+  border-color: #0056d6;
+}
+
+.add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* RESETEAR COMPLETAMENTE EL BOTÓN DE IMPORTAR */
+.questions-toolbar .bulk-importer {
+  height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.questions-toolbar .bulk-importer .bulk-import-btn {
+  height: 40px !important;
+  line-height: normal !important;
+  padding: 8px 16px !important;
+  margin: 0 !important;
+  border: 1px solid #d1d5db !important;
+  background: white !important;
+  color: #374151 !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  border-radius: 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  white-space: nowrap !important;
+  vertical-align: top !important;
+  position: relative !important;
+  top: 0 !important;
+  transform: none !important;
+}
+
+/* Estado vacío minimalista */
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #9ca3af;
+  background: #f9fafb;
+  border: 1px dashed #d1d5db;
+  border-radius: 12px;
+  margin: 20px 0;
+}
+
+.empty-icon {
+  margin-bottom: 12px;
+  color: #d1d5db;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .questions-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .add-question-group {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .question-select,
+  .add-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
 }
 </style>
