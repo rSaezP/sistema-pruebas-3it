@@ -465,7 +465,7 @@ onMounted(() => {
 .card-header h2 {
   margin: 0;
   font-size: var(--font-size-lg);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .card-content {
@@ -486,7 +486,7 @@ onMounted(() => {
 }
 
 .info-item label {
-  font-weight: 600;
+  font-weight: 400;
   color: var(--azul-tritiano);
   font-size: var(--font-size-sm);
 }
@@ -530,14 +530,14 @@ onMounted(() => {
 
 .summary-content .number {
   font-size: var(--font-size-xl);
-  font-weight: 700;
+  font-weight: 400;
   color: var(--azul-tritiano);
   margin: 0;
 }
 
 .summary-content .percentage {
   font-size: var(--font-size-lg);
-  font-weight: 600;
+  font-weight: 400;
   color: var(--azul-electrico);
   margin: 0;
 }
@@ -604,7 +604,7 @@ onMounted(() => {
 }
 
 .score {
-  font-weight: 700;
+  font-weight: 400;
   padding: var(--spacing-1) var(--spacing-2);
   border-radius: var(--radius-sm);
   margin-bottom: var(--spacing-1);
@@ -618,7 +618,7 @@ onMounted(() => {
 .percentage {
   font-size: var(--font-size-sm);
   color: var(--azul-tritiano);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .question-content {
@@ -629,7 +629,7 @@ onMounted(() => {
   margin: 0 0 var(--spacing-2) 0;
   color: var(--azul-tritiano);
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .question-description p {
@@ -726,7 +726,7 @@ onMounted(() => {
 }
 
 .category-score {
-  font-weight: 600;
+  font-weight: 400;
   color: var(--azul-tritiano);
   font-size: var(--font-size-sm);
 }
@@ -747,7 +747,7 @@ onMounted(() => {
 
 .category-percentage {
   text-align: center;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--azul-tritiano);
 }
 
@@ -763,7 +763,7 @@ onMounted(() => {
   border: none;
   padding: var(--spacing-2) var(--spacing-3);
   border-radius: var(--radius-md);
-  font-weight: 600;
+  font-weight: 400;
   cursor: pointer;
   transition: all var(--transition-base);
 }
@@ -821,7 +821,7 @@ onMounted(() => {
 
 .result-icon {
   font-size: 18px;
-  font-weight: bold;
+  font-weight: 400;
 }
 
 .correct-answer {
@@ -877,12 +877,12 @@ onMounted(() => {
 
 .correct-mark {
   color: #059669;
-  font-weight: bold;
+  font-weight: 400;
 }
 
 .selected-mark {
   color: #F59E0B;
-  font-weight: bold;
+  font-weight: 400;
   font-size: 12px;
 }
 </style>

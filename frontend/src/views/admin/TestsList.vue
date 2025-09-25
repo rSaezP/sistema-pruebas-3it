@@ -415,7 +415,7 @@ onMounted(() => {
 }
 
 .stat-value {
-  font-weight: 600;
+  font-weight: 400;
   color: var(--azul-tritiano);
   font-size: var(--font-size-sm);
 }
@@ -437,8 +437,9 @@ onMounted(() => {
 }
 
 .status-badge.active {
-  background: #D1FAE5;
-  color: #065F46;
+  background: linear-gradient(135deg, var(--turquesa-light) 0%, rgba(44, 213, 196, 0.2) 100%);
+  color: var(--turquesa-dark);
+  border: 1px solid var(--turquesa);
 }
 
 .status-badge.inactive {

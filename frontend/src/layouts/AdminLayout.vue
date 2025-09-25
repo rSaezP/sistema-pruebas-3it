@@ -204,7 +204,7 @@ const userEmail = computed(() => {
   color: var(--primary);
   font-size: var(--font-size-3xl);
   margin: 0;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 /* Elementos compartidos */
@@ -247,7 +247,7 @@ const userEmail = computed(() => {
 
 .user-info span {
   font-size: var(--font-size-base);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .user-info small {

@@ -388,7 +388,7 @@ watch(
 
 .app-name {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 400;
   color: white;
   margin: 0;
   white-space: nowrap;
@@ -482,7 +482,7 @@ watch(
   padding: 2px 8px;
   border-radius: 10px;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.4;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -606,7 +606,7 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
+  font-weight: 400;
   font-size: 13px;
   flex-shrink: 0;
   overflow: hidden;
@@ -626,7 +626,7 @@ watch(
 
 .user-name {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 400;
   color: white;
   margin: 0 0 2px 0;
   white-space: nowrap;

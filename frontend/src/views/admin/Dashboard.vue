@@ -99,7 +99,7 @@
         </div>
         
         <div class="chart-container">
-          <h3>Distribución de Puntuaciones</h3>
+          <h3>Pruebas Favoritas</h3>
           <div class="chart-wrapper">
             <canvas ref="scoreDistributionChart"></canvas>
           </div>
@@ -348,27 +348,86 @@ const initCharts = async () => {
             datasets: [{
               label: 'Puntuación Promedio',
               data: scores.length > 0 ? scores : [0],
-              backgroundColor: 'rgba(0, 90, 238, 0.7)',
-              borderColor: 'rgba(0, 90, 238, 1)',
-              borderWidth: 1
+              backgroundColor: function(context) {
+                const chart = context.chart;
+                const {ctx, chartArea} = chart;
+                if (!chartArea) {
+                  return null;
+                }
+                const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                gradient.addColorStop(0, '#005AEE');    // Blue Electric arriba
+                gradient.addColorStop(1, '#2CD5C4');    // Turquesa abajo
+                return gradient;
+              },
+              borderColor: '#005AEE',
+              borderWidth: 0,
+              borderRadius: 8,
+              borderSkipped: false,
             }]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                backgroundColor: '#005AEE',
+                titleColor: '#ffffff',
+                bodyColor: '#ffffff',
+                cornerRadius: 8,
+                displayColors: false,
+                callbacks: {
+                  title: function(context) {
+                    return context[0].label;
+                  },
+                  label: function(context) {
+                    return `Promedio: ${context.parsed.y}%`;
+                  }
+                }
+              }
+            },
             scales: {
               y: {
                 beginAtZero: true,
                 max: 100,
                 title: {
                   display: true,
-                  text: 'Puntuación (%)'
+                  text: 'Puntuación (%)',
+                  color: '#64748b',
+                  font: {
+                    size: 12,
+                    weight: 500
+                  }
+                },
+                grid: {
+                  color: '#f1f5f9',
+                  drawBorder: false
+                },
+                ticks: {
+                  color: '#64748b',
+                  font: {
+                    size: 11
+                  }
+                }
+              },
+              x: {
+                grid: {
+                  display: false
+                },
+                ticks: {
+                  color: '#64748b',
+                  font: {
+                    size: 11
+                  },
+                  maxRotation: 45
                 }
               }
             },
-            plugins: {
-              legend: {
-                display: false
+            elements: {
+              bar: {
+                borderRadius: 4
               }
             }
           }
@@ -380,47 +439,126 @@ const initCharts = async () => {
     if (scoreDistributionChart.value) {
       const ctx = scoreDistributionChart.value.getContext('2d')
       if (ctx) {
-        // Calcular distribución real basada en sesiones recientes
-        const scores = recentSessions.value.map(s => s.score);
-        let excellent = 0, good = 0, average = 0, poor = 0;
+        // Obtener las pruebas más populares basado en datos reales
+        const performanceData = window.performanceData || [];
+        console.log('Performance data for favorites:', performanceData);
         
-        scores.forEach(score => {
-          if (score >= 90) excellent++;
-          else if (score >= 75) good++;
-          else if (score >= 60) average++;
-          else poor++;
-        });
+        let testLabels = [];
+        let testCounts = [];
         
-        // Si no hay datos, mostrar distribuión equilibrada
-        if (scores.length === 0) {
-          excellent = 1; good = 2; average = 2; poor = 1;
+        if (performanceData.length > 0) {
+          // Ordenar por número de sesiones completadas y tomar las top 5
+          const sortedTests = performanceData
+            .filter(test => test.completed_sessions > 0)
+            .sort((a, b) => (b.completed_sessions || 0) - (a.completed_sessions || 0))
+            .slice(0, 5);
+          
+          if (sortedTests.length > 0) {
+            testLabels = sortedTests.map(test => test.test_name || 'Sin nombre');
+            testCounts = sortedTests.map(test => test.completed_sessions || 0);
+          } else {
+            // Si no hay datos con sesiones completadas, usar los primeros 5
+            testLabels = performanceData.slice(0, 5).map(test => test.test_name || 'Sin nombre');
+            testCounts = performanceData.slice(0, 5).map(test => test.total_sessions || 1);
+          }
+        } else {
+          // Datos de ejemplo si no hay datos reales
+          testLabels = ['JavaScript Básico', 'Python Intermedio', 'SQL Avanzado', 'React Frontend', 'Node.js Backend'];
+          testCounts = [15, 12, 8, 6, 4];
         }
         
-        scoreDistributionChartInstance = new Chart(ctx, {
-          type: 'doughnut',
-          data: {
-            labels: ['Excelente (90-100)', 'Bueno (75-89)', 'Promedio (60-74)', 'Debajo del promedio (<60)'],
-            datasets: [{
-              data: [excellent, good, average, poor],
-              backgroundColor: [
-                'rgba(40, 167, 69, 0.8)',
-                'rgba(0, 90, 238, 0.8)',
-                'rgba(255, 193, 7, 0.8)',
-                'rgba(220, 53, 69, 0.8)'
-              ],
-              borderWidth: 1
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                position: 'right'
+        console.log('Chart labels:', testLabels);
+        console.log('Chart counts:', testCounts);
+        
+        // Gradientes corporativos: Blue Electric y Turquesa
+        const corporateShades = [
+          '#005AEE',  // Blue Electric principal
+          '#2CD5C4',  // Turquesa PANTONE 3255 C
+          '#1E6FFF',  // Blue Electric claro
+          '#26C4B3',  // Turquesa hover
+          '#4A85FF'   // Blue Electric medio
+        ];
+        
+        // Asegurarse de que hay datos para mostrar
+        if (testCounts.reduce((a, b) => a + b, 0) > 0) {
+          scoreDistributionChartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+              labels: testLabels,
+              datasets: [{
+                data: testCounts,
+                backgroundColor: corporateShades.slice(0, testLabels.length),
+                borderColor: '#ffffff',
+                borderWidth: 2,
+                hoverBorderWidth: 3,
+                hoverBorderColor: '#005AEE'
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              cutout: '50%',
+              plugins: {
+                legend: {
+                  position: 'bottom',
+                  labels: {
+                    padding: 20,
+                    usePointStyle: true,
+                    pointStyle: 'circle',
+                    font: {
+                      size: 11,
+                      weight: 500
+                    },
+                    color: '#64748b',
+                    generateLabels: function(chart) {
+                      const data = chart.data;
+                      if (data.labels.length && data.datasets.length) {
+                        return data.labels.map((label, i) => ({
+                          text: label,
+                          fillStyle: data.datasets[0].backgroundColor[i],
+                          strokeStyle: data.datasets[0].backgroundColor[i],
+                          lineWidth: 0,
+                          pointStyle: 'circle',
+                          hidden: false,
+                          index: i
+                        }));
+                      }
+                      return [];
+                    }
+                  }
+                },
+                tooltip: {
+                  backgroundColor: '#005AEE',
+                  titleColor: '#ffffff',
+                  bodyColor: '#ffffff',
+                  cornerRadius: 8,
+                  displayColors: true,
+                  callbacks: {
+                    label: function(context) {
+                      const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                      const percentage = total > 0 ? ((context.parsed * 100) / total).toFixed(1) : '0';
+                      return `${context.label}: ${context.parsed} sesiones (${percentage}%)`;
+                    }
+                  }
+                }
+              },
+              interaction: {
+                intersect: false
+              },
+              animation: {
+                animateRotate: true,
+                animateScale: false
               }
             }
-          }
-        })
+          });
+        } else {
+          // Si no hay datos, mostrar mensaje
+          ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+          ctx.font = '16px Arial';
+          ctx.fillStyle = '#64748b';
+          ctx.textAlign = 'center';
+          ctx.fillText('No hay datos de pruebas disponibles', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        }
       }
     }
   } catch (error) {
@@ -567,7 +705,7 @@ onBeforeUnmount(() => {
   padding: var(--spacing-3) var(--spacing-6);
   border-radius: var(--radius-md);
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 400;
   transition: background-color var(--transition-base);
 }
 
@@ -624,7 +762,7 @@ onBeforeUnmount(() => {
 
 .stat-content h3 {
   font-size: var(--font-size-2xl);
-  font-weight: 700;
+  font-weight: 400;
   color: var(--azul-tritiano);
   margin: 0;
 }
@@ -653,13 +791,31 @@ onBeforeUnmount(() => {
   border-radius: 16px;
   padding: 32px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  border: 1px solid #f1f5f9;
+  transition: all 0.2s ease;
+}
+
+.chart-container:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12);
 }
 
 .chart-container h3 {
-  color: #1e293b;
+  color: #005AEE;
   font-size: 20px;
   margin: 0 0 24px 0;
-  font-weight: 600;
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chart-container h3::before {
+  content: '';
+  width: 4px;
+  height: 20px;
+  background: linear-gradient(135deg, #005AEE 0%, #2CD5C4 100%);
+  border-radius: 2px;
 }
 
 .chart-wrapper {
@@ -687,7 +843,7 @@ onBeforeUnmount(() => {
 .section-header h2 {
   color: #1e293b;
   font-size: 24px;
-  font-weight: 600;
+  font-weight: 400;
   margin: 0;
 }
 
@@ -724,7 +880,7 @@ onBeforeUnmount(() => {
 .sessions-table th {
   background-color: #f8fafc;
   color: #475569;
-  font-weight: 600;
+  font-weight: 400;
   font-size: 14px;
   border-bottom: 2px solid #e2e8f0;
 }
@@ -759,11 +915,11 @@ onBeforeUnmount(() => {
 }
 
 .score-fill.excellent {
-  background-color: var(--primary);
+  background: linear-gradient(90deg, var(--turquesa) 0%, var(--turquesa-hover) 100%);
 }
 
 .score-fill.good {
-  background-color: var(--primary);
+  background: linear-gradient(90deg, var(--primary) 0%, var(--turquesa) 100%);
 }
 
 .score-fill.average {
@@ -783,8 +939,9 @@ onBeforeUnmount(() => {
 }
 
 .status.evaluated {
-  background-color: #d4edda;
-  color: #155724;
+  background: linear-gradient(135deg, var(--turquesa-light) 0%, rgba(44, 213, 196, 0.2) 100%);
+  color: var(--turquesa-dark);
+  border: 1px solid var(--turquesa);
 }
 
 .status.pending_review {
@@ -832,7 +989,7 @@ onBeforeUnmount(() => {
 .skills-analysis h2 {
   color: #1e293b;
   font-size: 24px;
-  font-weight: 600;
+  font-weight: 400;
   margin: 0 0 32px 0;
 }
 
@@ -866,11 +1023,11 @@ onBeforeUnmount(() => {
   margin: 0;
   color: #1e293b;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .skill-score {
-  font-weight: 700;
+  font-weight: 400;
   color: #3b82f6;
 }
 
@@ -889,11 +1046,11 @@ onBeforeUnmount(() => {
 }
 
 .skill-progress-bar.excellent {
-  background-color: var(--primary);
+  background: linear-gradient(90deg, var(--turquesa) 0%, var(--turquesa-dark) 100%);
 }
 
 .skill-progress-bar.good {
-  background-color: var(--primary);
+  background: linear-gradient(90deg, var(--primary) 0%, var(--turquesa) 100%);
 }
 
 .skill-progress-bar.average {
@@ -918,7 +1075,7 @@ onBeforeUnmount(() => {
 
 .stat-content h3 {
   font-size: 32px;
-  font-weight: 700;
+  font-weight: 400;
   color: #1e293b;
   margin: 0 0 8px 0;
 }

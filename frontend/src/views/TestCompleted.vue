@@ -84,7 +84,7 @@ onUnmounted(() => {
 .test-completed-header h1 {
   color: var(--azul-tritiano);
   font-size: var(--font-size-3xl);
-  font-weight: 600;
+  font-weight: 400;
   margin-bottom: var(--spacing-2);
 }
 
@@ -128,7 +128,7 @@ onUnmounted(() => {
 }
 
 .countdown {
-  font-weight: 600;
+  font-weight: 400;
   color: var(--azul-electrico);
 }
 

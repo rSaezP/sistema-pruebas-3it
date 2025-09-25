@@ -176,7 +176,7 @@ defineExpose({
 
 .timer-display {
   font-size: 2.5rem;
-  font-weight: 700;
+  font-weight: 400;
   font-family: 'Courier New', monospace;
   color: var(--azul-tritiano);
   margin-bottom: 1rem;

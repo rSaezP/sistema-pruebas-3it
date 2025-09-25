@@ -96,7 +96,11 @@
                 {{ formatExpiryDate(candidate.expiresAt) }}
               </td>
               <td>
-                <span v-if="candidate.score !== null">
+                <span 
+                  v-if="candidate.score !== null" 
+                  :class="getScoreClass(candidate.score)"
+                  class="score-display"
+                >
                   {{ candidate.score }}/100
                 </span>
                 <span v-else class="text-muted">-</span>
@@ -119,7 +123,7 @@
                 <button 
                   v-if="candidate.status === 'completed'"
                   @click="downloadReport(candidate.id, candidate.name)"
-                  class="btn-icon"
+                  class="btn-icon btn-success-icon"
                   title="Descargar reporte PDF"
                   :disabled="downloadingReports.has(candidate.id)"
                 >
@@ -408,6 +412,14 @@ const minExpirationDate = computed(() => {
   tomorrow.setDate(tomorrow.getDate() + 1);
   return tomorrow.toISOString().split('T')[0];
 });
+
+// Función para obtener clase de color según puntuación
+const getScoreClass = (score: number) => {
+  if (score >= 90) return 'score-excellent';
+  if (score >= 75) return 'score-good';
+  if (score >= 60) return 'score-average';
+  return 'score-poor';
+};
 
 // Watchers para resetear página cuando cambien los filtros
 watch([searchQuery, statusFilter, testFilter], () => {
@@ -887,7 +899,7 @@ th, td {
 th {
   background-color: var(--azul-tritiano);
   color: var(--blanco);
-  font-weight: 600;
+  font-weight: 400;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -909,21 +921,74 @@ tr:hover {
 .status-pending {
   background-color: #fef3c7;
   color: #92400e;
+  border: 1px solid #f59e0b;
+  border-radius: 12px;
+  padding: 0.25rem 0.75rem;
+  font-weight: 500;
+  display: inline-block;
 }
 
 .status-in-progress {
-  background-color: #dbeafe;
-  color: #1e40af;
+  background: linear-gradient(135deg, var(--primary-light) 0%, rgba(0, 90, 238, 0.2) 100%);
+  color: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: 12px;
+  padding: 0.25rem 0.75rem;
+  font-weight: 500;
+  display: inline-block;
 }
 
 .status-completed {
-  background-color: #d1fae5;
-  color: #065f46;
+  background: linear-gradient(135deg, var(--turquesa-light) 0%, rgba(44, 213, 196, 0.2) 100%);
+  color: var(--turquesa-dark);
+  border: 1px solid var(--turquesa);
+  border-radius: 12px;
+  padding: 0.25rem 0.75rem;
+  font-weight: 500;
+  display: inline-block;
 }
 
 .status-expired {
   background-color: #fee2e2;
   color: #991b1b;
+  border: 1px solid #ef4444;
+  border-radius: 12px;
+  padding: 0.25rem 0.75rem;
+  font-weight: 500;
+  display: inline-block;
+}
+
+/* Estilos para puntuaciones con colores corporativos */
+.score-display {
+  font-weight: 400;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  display: inline-block;
+}
+
+.score-excellent {
+  background: linear-gradient(135deg, var(--turquesa-light) 0%, rgba(44, 213, 196, 0.2) 100%);
+  color: var(--turquesa-dark);
+  border: 1px solid var(--turquesa);
+}
+
+.score-good {
+  background: linear-gradient(135deg, var(--primary-light) 0%, var(--turquesa-light) 100%);
+  color: var(--primary);
+  border: 1px solid var(--primary);
+}
+
+.score-average {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+}
+
+.score-poor {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #ef4444;
 }
 
 .actions {
@@ -962,6 +1027,19 @@ tr:hover {
 .btn-icon:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.btn-success-icon {
+  background: linear-gradient(135deg, var(--turquesa-light) 0%, rgba(44, 213, 196, 0.2) 100%);
+  border: 1px solid var(--turquesa);
+  color: var(--turquesa-dark);
+}
+
+.btn-success-icon:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--turquesa) 0%, var(--turquesa-hover) 100%);
+  color: var(--blanco);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(44, 213, 196, 0.3);
 }
 
 .spinner-sm {

@@ -200,7 +200,7 @@ const updateTestCase = (id: string, field: keyof TestCase, value: any) => {
 }
 
 .test-case-number {
-  font-weight: 600;
+  font-weight: 400;
   color: var(--azul-tritiano);
 }
 
@@ -239,7 +239,7 @@ const updateTestCase = (id: string, field: keyof TestCase, value: any) => {
 .form-group label {
   display: block;
   margin-bottom: var(--spacing-1);
-  font-weight: 600;
+  font-weight: 400;
   color: var(--azul-tritiano);
   font-size: var(--font-size-sm);
 }

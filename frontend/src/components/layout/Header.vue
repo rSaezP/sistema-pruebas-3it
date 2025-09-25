@@ -417,7 +417,7 @@ onBeforeUnmount(() => {
 
 .app-name {
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--azul-tritiano);
   margin: 0;
   display: none;
@@ -465,7 +465,7 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   padding: 2px 6px;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 400;
   min-width: 18px;
   height: 18px;
   display: flex;
@@ -639,7 +639,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
+  font-weight: 400;
   font-size: 12px;
   overflow: hidden;
 }
@@ -716,7 +716,7 @@ onBeforeUnmount(() => {
   background-color: rgba(0, 90, 238, 0.1);
   color: var(--azul-electrico);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 400;
   padding: 2px 8px;
   border-radius: 10px;
   text-transform: uppercase;

@@ -747,7 +747,7 @@
     padding: 0.25rem 0.75rem;
     border-radius: 20px;
     font-size: 0.875rem;
-    font-weight: 600;
+    font-weight: 400;
   }
 
   .question-type-badge {

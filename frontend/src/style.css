@@ -8,7 +8,7 @@
   --blanco: #FFFFFF;
   
   /* Colores adicionales para estados */
-  --success: var(--primary);
+  --success: var(--turquesa);
   --warning: #F59E0B;
   --error: #EF4444;
   --info: var(--azul-electrico);
@@ -17,6 +17,11 @@
   --primary: var(--azul-electrico);
   --primary-hover: #0056d6;
   --primary-light: rgba(0, 90, 238, 0.1);
+  
+  /* Variables turquesa adicionales */
+  --turquesa-hover: #26C4B3;
+  --turquesa-light: rgba(44, 213, 196, 0.1);
+  --turquesa-dark: #1FA89A;
   
   /* Espaciado sistema 8px ampliado */
   --spacing-1: 8px;
@@ -75,7 +80,7 @@ body {
 /* Typography */
 h1, h2, h3, h4, h5, h6 {
   line-height: 1.2;
-  font-weight: 600;
+  font-weight: 400;
   margin-bottom: var(--spacing-2);
 }
 
@@ -114,9 +119,9 @@ p {
 }
 
 .btn-primary:hover {
-  background-color: var(--primary-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
+  background: linear-gradient(135deg, var(--primary-hover) 0%, var(--turquesa) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 90, 238, 0.3);
 }
 
 .btn-secondary {
@@ -131,8 +136,17 @@ p {
 }
 
 .btn-success {
-  background-color: var(--success);
+  background: linear-gradient(135deg, var(--turquesa) 0%, var(--turquesa-hover) 100%);
   color: var(--blanco);
+  border: none;
+  box-shadow: 0 2px 8px rgba(44, 213, 196, 0.3);
+  transition: all 0.3s ease;
+}
+
+.btn-success:hover {
+  background: linear-gradient(135deg, var(--turquesa-hover) 0%, var(--turquesa-dark) 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(44, 213, 196, 0.4);
 }
 
 .btn-warning {
@@ -218,7 +232,7 @@ p {
 
 .card-title {
   font-size: var(--font-size-lg);
-  font-weight: 600;
+  font-weight: 400;
   color: var(--azul-tritiano);
   margin-bottom: var(--spacing-1);
 }
@@ -247,7 +261,7 @@ p {
   color: var(--blanco);
   padding: var(--spacing-3);
   text-align: left;
-  font-weight: 600;
+  font-weight: 400;
   font-size: var(--font-size-sm);
   text-transform: uppercase;
   letter-spacing: 0.025em;
@@ -358,8 +372,8 @@ p {
 .text-left { text-align: left; }
 .text-right { text-align: right; }
 
-.font-bold { font-weight: 600; }
-.font-medium { font-weight: 500; }
+.font-bold { font-weight: 400; }
+.font-medium { font-weight: 400; }
 .font-normal { font-weight: 400; }
 
 .text-xs { font-size: var(--font-size-xs); }

@@ -400,7 +400,7 @@ const importQuestions = () => {
 }
 
 .question-number {
-  font-weight: bold;
+  font-weight: 400;
   color: var(--azul-electrico);
 }
 
@@ -440,7 +440,7 @@ const importQuestions = () => {
 }
 
 .option-label {
-  font-weight: bold;
+  font-weight: 400;
   color: var(--azul-electrico);
   min-width: 20px;
 }
@@ -452,7 +452,7 @@ const importQuestions = () => {
 
 .correct-mark {
   color: #059669;
-  font-weight: bold;
+  font-weight: 400;
 }
 
 .confirmation-buttons {

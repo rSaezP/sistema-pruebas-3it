@@ -668,7 +668,7 @@ const getQuestionOptions = (question: any) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
+  font-weight: 400;
   margin-bottom: var(--spacing-2);
   transition: all var(--transition-base);
 }
@@ -692,7 +692,7 @@ const getQuestionOptions = (question: any) => {
 
 .step.active .step-label {
   color: var(--azul-electrico);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 /* Step Content */
@@ -714,7 +714,7 @@ const getQuestionOptions = (question: any) => {
 .form-group label {
   display: block;
   margin-bottom: var(--spacing-1);
-  font-weight: 600;
+  font-weight: 400;
   color: var(--azul-tritiano);
   font-size: var(--font-size-sm);
 }
@@ -960,7 +960,7 @@ input:checked + .slider:before {
   align-items: center;
   justify-content: center;
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .question-type-badge {

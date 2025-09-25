@@ -424,7 +424,7 @@ onMounted(() => {
 .form-group label {
   display: block;
   margin-bottom: var(--spacing-1);
-  font-weight: 600;
+  font-weight: 400;
   color: var(--azul-tritiano);
   font-size: var(--font-size-sm);
 }
@@ -475,7 +475,7 @@ onMounted(() => {
 }
 
 .option-label {
-  font-weight: 600;
+  font-weight: 400;
   color: var(--azul-tritiano);
 }
 
