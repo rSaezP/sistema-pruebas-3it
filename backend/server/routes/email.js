@@ -206,18 +206,47 @@ router.post('/send-invitation', async (req, res) => {
    return res.status(400).json({ error: 'Faltan datos requeridos' });
  }
 
+ console.log('🔍 DEBUG RESEND - Datos recibidos:', { candidateId, testId, sessionToken });
+
  const transporter = createTransporter();
  if (!transporter) {
    return res.status(500).json({ error: 'Servicio de email no configurado' });
  }
 
  try {
+   // Convert to integers to ensure proper DB lookup
+   const candidateIdInt = parseInt(candidateId);
+   const testIdInt = parseInt(testId);
+   
+   console.log('🔍 DEBUG RESEND - Buscando:', { candidateIdInt, testIdInt });
+   
    // Get candidate and test details
-   const candidate = db.prepare('SELECT * FROM candidates WHERE id = ?').get(candidateId);
-   const test = db.prepare('SELECT * FROM tests WHERE id = ?').get(testId);
+   const candidate = db.prepare('SELECT * FROM candidates WHERE id = ?').get(candidateIdInt);
+   const test = db.prepare('SELECT * FROM tests WHERE id = ?').get(testIdInt);
+   
+   console.log('🔍 DEBUG RESEND - Encontrado:', { 
+     candidateFound: !!candidate, 
+     testFound: !!test,
+     candidateName: candidate?.name,
+     testName: test?.name
+   });
+
+   // Debug: mostrar candidatos existentes
+   if (!candidate) {
+     const allCandidates = db.prepare('SELECT id, name, email FROM candidates ORDER BY id DESC LIMIT 5').all();
+     console.log('🔍 DEBUG - Candidatos existentes en DB:', allCandidates);
+   }
 
    if (!candidate || !test) {
-     return res.status(404).json({ error: 'Candidato o prueba no encontrada' });
+     const errorMsg = !candidate ? 
+       `Candidato con ID ${candidateIdInt} no encontrado en la base de datos` : 
+       `Prueba con ID ${testIdInt} no encontrada`;
+     return res.status(404).json({ 
+       error: errorMsg,
+       candidateExists: !!candidate,
+       testExists: !!test,
+       availableCandidates: !candidate ? db.prepare('SELECT id, name FROM candidates ORDER BY id DESC LIMIT 5').all() : null
+     });
    }
 
    // Generate test URL

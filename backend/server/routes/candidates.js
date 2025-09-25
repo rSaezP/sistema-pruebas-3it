@@ -81,7 +81,8 @@ router.get('/', (req, res) => {
       }
       
       return {
-        id: session.session_id, // Use session ID as unique identifier
+        id: session.candidate_id, // Use candidate ID as identifier for reenvío
+        session_id: session.session_id, // Keep session ID separate
         candidate_id: session.candidate_id,
         name: session.name,
         lastname: session.lastname,

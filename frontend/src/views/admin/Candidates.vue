@@ -589,9 +589,16 @@ const sendInvitation = async () => {
 
 const resendInvitation = async (candidateId: string | number) => {
   try {
+    console.log('🔍 FRONTEND DEBUG - candidateId recibido:', candidateId);
+    console.log('🔍 FRONTEND DEBUG - Lista actual de candidatos:', candidates.value.map(c => ({ id: c.id, name: c.name })));
+    
+    // SIEMPRE recargar datos antes de reenviar
+    console.log('🔍 FRONTEND DEBUG - Recargando datos antes de reenviar...');
+    await fetchCandidates();
+    
     const candidate = candidates.value.find(c => c.id === candidateId);
     if (!candidate) {
-      toast.error('No se encontró el candidato');
+      toast.error(`El candidato con ID ${candidateId} ya no existe. Lista actualizada.`);
       return;
     }
     
@@ -610,6 +617,13 @@ const resendInvitation = async (candidateId: string | number) => {
     });
 
     if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      if (response.status === 404) {
+        toast.error(`El candidato ya no existe. Actualizando lista...`);
+        // Recargar la lista de candidatos para actualizar datos
+        await fetchCandidates();
+        return;
+      }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     
