@@ -1,12 +1,23 @@
 <template>
   <div class="login-container">
-    <!-- Patrón de fondo con logo sutil -->
-    <div class="background-pattern"></div>
+    <!-- Fondo corporativo con logos -->
+    <div class="background-corporate">
+      <div class="logo-pattern logo-pattern-1">
+        <img src="@/assets/ISOTIPO-1.png" alt="3IT">
+      </div>
+      <div class="logo-pattern logo-pattern-2">
+        <img src="@/assets/ISOTIPO-2.png" alt="3IT">
+      </div>
+      <div class="logo-pattern logo-pattern-4">
+        <img src="@/assets/ISOTIPO-3.png" alt="3IT">
+      </div>
+      <div class="logo-pattern logo-pattern-6">
+        <img src="@/assets/ISOTIPO-4.png" alt="3IT">
+      </div>
+    </div>
     
-    <!-- Círculos decorativos -->
-    <div class="decoration-circle circle-1"></div>
-    <div class="decoration-circle circle-2"></div>
-    <div class="decoration-circle circle-3"></div>
+    <!-- Overlay con gradiente -->
+    <div class="gradient-overlay"></div>
     
     <div class="login-card">
       <div class="login-header">
@@ -104,67 +115,96 @@ const handleCognitoLogin = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #000026 0%, #005AEE 50%, #2CD5C4 100%);
+  background: #1a1a1a;
   padding: 20px;
   position: relative;
   overflow: hidden;
 }
 
-/* Patrón de fondo sutil */
-.background-pattern {
+/* Fondo corporativo con logos */
+.background-corporate {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-  animation: backgroundMove 20s ease-in-out infinite;
+  overflow: hidden;
 }
 
-/* Círculos decorativos flotantes */
-.decoration-circle {
+.logo-pattern {
   position: absolute;
-  border-radius: 50%;
-  background: linear-gradient(45deg, rgba(255, 255, 255, 0.1), rgba(44, 213, 196, 0.2));
-  animation: float 6s ease-in-out infinite;
+  opacity: 0.15;
+  filter: grayscale(0%);
+  animation: floatSlow 25s ease-in-out infinite;
+  z-index: 1;
 }
 
-.circle-1 {
-  width: 80px;
-  height: 80px;
-  top: 10%;
-  left: 10%;
+.logo-pattern img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Posicionamiento de logos isotipos solamente */
+.logo-pattern-1 {
+  width: 100px;
+  height: 100px;
+  top: 8%;
+  left: 12%;
   animation-delay: -2s;
 }
 
-.circle-2 {
-  width: 120px;
-  height: 120px;
-  top: 70%;
-  right: 10%;
-  animation-delay: -4s;
+.logo-pattern-2 {
+  width: 70px;
+  height: 70px;
+  top: 20%;
+  right: 25%;
+  animation-delay: -8s;
 }
 
-.circle-3 {
-  width: 60px;
-  height: 60px;
-  top: 30%;
-  right: 20%;
-  animation-delay: -1s;
+.logo-pattern-4 {
+  width: 90px;
+  height: 90px;
+  bottom: 25%;
+  right: 15%;
+  animation-delay: -5s;
+}
+
+.logo-pattern-6 {
+  width: 80px;
+  height: 80px;
+  top: 60%;
+  left: 8%;
+  animation-delay: -18s;
+}
+
+/* Overlay gradiente corporativo */
+.gradient-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: 
+    radial-gradient(circle at 20% 80%, rgba(44, 213, 196, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(0, 90, 238, 0.15) 0%, transparent 50%),
+    linear-gradient(135deg, #000026 0%, #005AEE 35%, #2CD5C4 100%);
 }
 
 /* Tarjeta de login mejorada */
 .login-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  border-radius: 16px;
-  padding: 36px;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(25px) saturate(180%);
+  border-radius: 20px;
+  padding: 40px;
   box-shadow: 
-    0 25px 50px rgba(0, 0, 0, 0.15),
-    0 0 0 1px rgba(255, 255, 255, 0.2);
+    0 30px 60px rgba(0, 0, 0, 0.2),
+    0 0 0 1px rgba(255, 255, 255, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
   width: 100%;
   max-width: 420px;
   position: relative;
+  z-index: 10;
   animation: cardSlideUp 0.8s ease-out;
 }
 
@@ -344,15 +384,24 @@ const handleCognitoLogin = async () => {
   border: 1px solid rgba(44, 213, 196, 0.3);
 }
 
-/* Animaciones */
-@keyframes backgroundMove {
-  0%, 100% { transform: translateY(0px) translateX(0px); }
-  50% { transform: translateY(-10px) translateX(-5px); }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  50% { transform: translateY(-20px) rotate(180deg); }
+/* Animación suave y flotante para logos */
+@keyframes floatSlow {
+  0%, 100% { 
+    transform: translateY(0px) translateX(0px) rotate(0deg) scale(1); 
+    opacity: 0.15;
+  }
+  25% { 
+    transform: translateY(-15px) translateX(8px) rotate(2deg) scale(1.1); 
+    opacity: 0.25;
+  }
+  50% { 
+    transform: translateY(-10px) translateX(-5px) rotate(-1deg) scale(0.9); 
+    opacity: 0.12;
+  }
+  75% { 
+    transform: translateY(5px) translateX(-8px) rotate(1.5deg) scale(1.05); 
+    opacity: 0.20;
+  }
 }
 
 @keyframes cardSlideUp {
@@ -375,16 +424,13 @@ const handleCognitoLogin = async () => {
 @media (max-width: 768px) {
   .login-card {
     margin: 20px;
-    padding: 32px;
+    padding: 30px;
     max-width: none;
-  }
-  
-  .company-logo {
-    width: 100px;
+    border-radius: 16px;
   }
   
   .company-logo-text {
-    font-size: 40px !important;
+    font-size: 36px !important;
     letter-spacing: 2px !important;
   }
   
@@ -392,8 +438,11 @@ const handleCognitoLogin = async () => {
     font-size: 18px;
   }
   
-  .decoration-circle {
-    display: none;
+  /* Logos en mobile - ya solo tenemos isotipos */
+  
+  /* Ajustar tamaños de logos restantes */
+  .logo-pattern {
+    opacity: 0.05;
   }
 }
 
